@@ -1,0 +1,535 @@
+---
+title: "MapMyrun"
+output: html_document
+---
+
+#Introduction
+
+As an avid runner, I'm often on the lookout for new routes to try. It can get a bit tiresome running the same loop every time I want some exercise. While many articles abound online advising where one can run in any city, I figured I would try a more democratic approach. 
+
+I want a map of Baltimore that shows, for each street, how popular it is as a running location. How do I determine how popular a street is for running? By counting how many times people have run the street, of course! The end goal is a heat map that identifies popular areas and the best ways to connect them, creating a super-run that hits all of the city's best jogs. I may filter for trails that have been run >x number of times, to see what happens. 
+
+How could I possibly figure out where people are running? Why, by having them tell me, of course! Runners are now tracking their runs, and some apps allow them to share these runs. What app options exist?
+
+Strava is interesting- but you can only see the runs your friends did. Runkeeper looks amazing- it plays music that matches its bpm to your steps per minute, which is what Spotify used to do- but they don't track runners. There are also apps that 3D print your runs, which is cool!
+
+MapMyRun (owned by Under Armour) seems like the best option. You can etc..
+
+Let's see how much information there is for Baltimore on MapMyRun. At [MapMyRun's site](http://mapmyrun.com/routes), in `Near` put Baltimore, MD, USA, select `At Least`  0 miles, and put in `City`.
+
+![](search parameters initial.jpg)
+
+*** 
+
+What does this search return?
+
+***
+
+![](table initial.jpg)
+
+***
+
+As we can see, there are 359,394 routes currently posted for Baltimore. The table above displays the 19 most recent runs. Importantly, not only is MapMyRun widely used but it is up to date. When I accessed the site on September 1st at 2:00PM, 24 runs had already been posted that day. 
+
+In the `City` column, we see that many runs are outside of Baltimore's city limits. I am not sure why this is occuring (maybe the runs go through the city at some point?) but I think it is a good thing, because it will extend the range of our super-run. Let's use MapMyRun's map to visualize where these runs are in relation to Baltimore city.
+
+***
+
+![](initial map not satellite.jpg)
+
+***
+
+We can see that the runs are close to the city, so let's leave it for now. 
+
+Just for fun, let's see what this looks like in satellite view. (This image was accessed later, which explains why the runs changed)
+
+***
+
+![](initial_search_terrain_view.jpg)
+
+***
+
+#Accessing the posted routes
+
+There are nearly 400,000 posted routes on MapMyRun in and around Baltimore city. But how can we turn a route into data? We need to use GPS coordinates. 
+
+GPS stands for Global Positioning System and consists of 27 satellits in medium Earth orbit owned by the United States government and operated by the Air Force. Interestingly, since the US owns them, the US can selectively deny access to the GPS system, which it did to the Indian government in 1999 during the Kargil War. (An aside: The Kargil War, fought between India and Pakistan, is actually super interesting. The war, during which two Pakistani officials threatened to use nuclear weapons, may have been masterminded in secret by Pakistani General Perez Musharraf, who subsequently deposed the prime minister Nawaz Sharif in a military coup when Sharif attempted to court martial him after Pakistan lost spectactularly.) This "right to refuse servie" prompted India to create their own GPS system, called NAVIC. A number of non-American GPS systems now exist, including the EU's Galileo and Russia's GLONASS (interesting name).
+
+The 27 GPS satellites (24 in use and 3 as back-up in case others fail) are positioned such that any user anywhere on Earth can access four satellites, which is the necessary number for accurate positioning. The GPS receiver in your phone determines the distance to each satellite and combines that information to deduce the receiver's own location through [trilaterion](https://electronics.howstuffworks.com/gadgets/travel/gps.htm). Each GPS satellite is [constantly transmitting radio waves](http://www.physics.org/article-questions.asp?id=55) which contain the time and location at which they were sent. When these signals reach your receiver, the difference in time between when they were sent and received multiplied by the speed of light is the distance between you and the satellite. Knowing your distance from a point places you *somewhere* on a sphere surrounding it. Your location is thus the intersection of the three spheres centered on each satellite, which is trilateration. In fact, only three satellites are necessary to identify your location and the fourth is for increased accuracy.
+
+![Shown using circles instead of spheres for simplicity](trilateration.jpg)
+
+As our MapMyRun user sweats through his workout, his receiver constantly uses this strategy to determine his location, sometimes with an accuracy measured in inches! Of the vast number of GPS coordinates in Baltimore, his specific latitude and longitude is constantly being identified. In essence, a route can be characterized as a set of binary Yes and No's. Just as a river is defined by where it doesn't run as much as where it does, a route is informative not only because of where it does go but where it doesn't. We will pinpoint the GPS "hotspots" of the city.
+
+#Download the information from MapMyRun
+
+For each run posted on MapMyRun, we want to download the route as a list of GPS coordinates (i.e., latitudes and longitudes) denoting where the runner was throughout. Certainly we can't get this information simply by looking at the maps, so how can we do it?
+
+This data is contained for each run as a `.gpx` file. GPX, which stands for GPS EXchange format, is a specific type of markup language, written in an XML schema. Now, what exactly is a markup language?
+
+From [wikipedia](https://en.wikipedia.org/wiki/Markup_language):
+
+"Markup (languages) instruct the software that displays the text to carry out appropriate actions, but are omitted from the version of the text that users see."
+
+Simply, markup is code written around content which determines how that content will be formatted. The most famous markup language is HTML. HTML determines how content on a website is displayed, transforming it from what would be a .txt file to the interactive websites we use today. The components of a "markup language" describe the identity and function of each part of the document, saying, for instance "this is the heading", etc.
+
+I have downloaded one of these very .gpx files, so let's open it, see how it looks, and plot it. 
+
+#Libraries for project
+
+```{r, message=FALSE}
+
+#libraries
+library(tidyverse)
+library(RSelenium)
+library(leaflet)
+
+#library(XML)
+library(rgdal) #this is used for readOGR
+library(ggmap)
+ #library(devtools)
+```
+
+#Plotting a .gpx file
+
+The function `readOGR` from the `rgdal` package turns it into a S4 Object of class Spacial Lines Data Frame.  
+
+```{r}
+#Using the readOGR function from rgdal package.
+first_try <- readOGR(dsn = "route842022275.gpx", "tracks")
+
+class(first_try)
+```
+
+This object can be plotted using `plot`. (Soon we will get into some much more interactive mapping techniques but first let's see the basics.)
+
+```{r}
+plot(first_try)
+```
+
+(put it against a real backdrop here)- do some real mapping. (either that or don't show the mapping at all)
+
+This appears to be a run, possibly around some body of water, but it's impossible to say without seeing it against the backdrop of Baltimore. 
+
+We use the `coordinates` function to turn our S4 Object into a normal data frame.
+
+```{r}
+first_coord <- coordinates(first_try)[[1]][[1]] %>%
+  as.tibble()
+
+#set colnames
+colnames(first_coord) <- c("long", "lat")
+
+head(first_coord)
+```
+
+#Scraping .gpx files for all runs
+
+We can obtain a .gpx file from MapMyRun's website and turn it into a tidy tibble containing all coordinates ran. Now the question is can we do this for all of the posted runs? We can collect the data by either web scraping or using MapMyRun's API. Unfortunately, MapMyRun never returned my request for an API key- so web scraping is our only option.
+
+I published a tutorial on everything you need to set up Docker and Selenium
+
+
+```{r}
+
+#This setting is very important. You need to set your default directory to a directory in Docker, that you then connect to your own computer. 
+eCaps <- list(
+  chromeOptions = 
+    list(prefs = list(
+      "profile.default_content_settings.popups" = 0L,
+      "download.prompt_for_download" = FALSE,
+      "download.default_directory" = "home/seluser/Downloads"
+    )
+    )
+)
+
+remDr <- remoteDriver(remoteServerAddr = "192.168.99.100", browserName= "chrome", port=4445L, extraCapabilities = eCaps)
+
+remDr$open()
+```
+
+To download routes in MapMyRun, it is necessary to first login to your account. So we start by accessing the MapMyRun homepage. 
+
+```{r}
+#go to mapmyrun home page
+remDr$navigate("https://www.mapmyrun.com")
+
+remDr$screenshot(display = TRUE)
+
+#it seems first i must sign to the website
+
+#go to login thing
+login <- remDr$findElement(using = "xpath", "//header/div[2]/nav[2]/ul/li[1]/a")
+login$clickElement()
+#remDr$screenshot(display = TRUE)
+
+#Now we need to login
+
+#input email
+login <- remDr$findElement(using = 'name', value = "email")
+login$sendKeysToElement(list("kerr.jesse@gmail.com"))
+remDr$screenshot(display = TRUE)
+
+#input password
+login <- remDr$findElement(using = 'name', value = "password")
+login$sendKeysToElement(list("NewJustforMap"))
+remDr$screenshot(display = TRUE)
+
+#click LogIn
+login <- remDr$findElement(using = 'css', "button")
+login$clickElement()
+remDr$screenshot(display = TRUE)
+```
+
+
+```{r}
+
+#we're in! Now I want to go to the routes page. It's in a dropdown, so I need to navigate there to open the dropdown. 
+#best try so far
+routes <- remDr$findElement(using = "xpath", "//header/div[1]/nav[1]/ul/li[2]/a")
+remDr$mouseMoveToLocation(webElement = routes)
+remDr$screenshot(display = TRUE)
+
+#now the dropdown is open so let's click on the first one.
+routes <- remDr$findElement(using = "xpath", "//header/div[1]/nav[1]/ul/li[2]/ul/li/a")
+
+#Using `getElementAttribute` we can verify whether we have the right link.
+routes$getElementAttribute("text")
+
+#It returns "Find Routes"!!!!
+routes$clickElement()
+remDr$getCurrentUrl()
+remDr$screenshot(display = TRUE)
+```
+
+`remDr$getTitle` tells you what the site has been named. 
+`remDr$getCurrentUrl()` tells you the URL you are at. 
+
+Now we are at the website--- what are we doing? We need to tell Selenium to put information somewhere, download the URLs that come up, then go to the next page. 
+
+We will communicate with it using HTML and CSS.
+
+Something I learned is that you need the html to have input somewhere if you are going to input. 
+
+So there are 4 css things that have the value input. 
+
+```{r}
+#the website now has "United States" in the "Near" selection. Need to select that, then delete that.
+webElem <- remDr$findElement(using = "class", value="Select-clear")
+
+#removes the United States
+webElem$clickElement()
+
+remDr$screenshot(display = TRUE)
+
+#we need the input element
+webElem <- remDr$findElements(using = "css", value="input")
+
+#there are 4 of these, the second is the input we want. 
+city <- webElem[[2]]
+
+#we can see, in accordance with the page source, that there is no class, id, or name associated with this element. 
+
+city$getElementAttribute("class")
+
+city$getElementAttribute("id")
+
+city$getElementAttribute("name")
+
+#below is the code for "tab", to fill in the Baltimore, MD, USA thing.
+#for some reason sometimes this requires being done twice.
+city$sendKeysToElement(list("Baltimore, MD, USA", "\uE004"))
+remDr$screenshot(display = TRUE)
+
+#Now we need to click the search button
+webElem <- remDr$findElement("xpath", "//div[@class = 'submitButtonDesktop-36_Oa']/button[@class = 'primary-xvWQU button-2M08K medium-3PyzS']")
+
+webElem$clickElement()
+remDr$screenshot(display = TRUE)
+
+#want to scroll to the bottom
+webElem <- remDr$findElement("css", "body")
+webElem$sendKeysToElement(list(key = "end"))
+remDr$screenshot(display = TRUE)
+
+```
+
+We have finally managed to load the site. Now I want to find all of the elements that are my links. The parts below needs to be repeated.
+
+```{r}
+#this gives 20, which is correct
+links <- remDr$findElements('xpath', "//a[contains(@href, 'routes/view')]")
+
+#write a for loop to save these?
+#initialize a dataframe/ tibble
+runs <- as.tibble(matrix(nrow = 20))
+
+for (i in 1:length(links)){
+  yo <- links[[i]]
+  new <- yo$getElementAttribute("href")
+  runs[i,1] <- paste(new, sep="")
+}
+
+```
+
+How do we click next to go to the next one?
+
+```{r}
+webElem <- remDr$findElement(using = 'xpath', "//*[@id='root']/div/div[3]/div/div[4]/a")
+webElem <- remDr$findElement(using = 'xpath', "//a[@class= 'pageLink-3961h']/span")
+length(webElem)
+webElem$clickElement()
+remDr$screenshot(display = TRUE)
+```
+
+Now, can I loop through all of the webpages, saving them all in the table?
+
+There are now 383,321 uploaded runs. If there are 20 per page, we need to access 19,191 pages
+
+```{r}
+#whole process
+
+#first page
+remDr$navigate("https://mapmyrun.com/routes")
+remDr$screenshot(display = TRUE)
+
+#scroll down
+webElem2 <- remDr$findElement("css", "body")
+webElem2$sendKeysToElement(list(key = "start"))
+remDr$screenshot(display = TRUE)
+
+#change window size
+remDr$setWindowSize(1096, 1604)
+remDr$screenshot(display = TRUE)
+
+#initialize starter matrix
+runs <- as.tibble(matrix(nrow = 20))
+
+#save the links on this first page
+links <- remDr$findElements('xpath', "//a[contains(@href, 'routes/view')]")
+
+#write a for loop to save these 20 links on this first page as a tibble. 
+for (i in 1:length(links)){
+  yo <- links[[i]]
+  new <- yo$getElementAttribute("href")
+  runs[i,1] <- paste(new, sep="")
+}
+
+runs <- rbind(as.tibble(matrix(nrow = 20)), runs)
+
+#go to next
+webElem <- remDr$findElement(using = 'xpath', "//a[@class= 'pageLink-3961h']/span")
+webElem$clickElement()
+remDr$screenshot(display = TRUE)
+
+while (length(remDr$findElements(using = 'xpath', "//a[@class= 'pageLink-3961h']/span")) == 2){
+
+  links <- remDr$findElements('xpath', "//a[contains(@href, 'routes/view')]")
+
+for (i in 1:length(links)){
+  yo <- links[[i]]
+  new <- yo$getElementAttribute("href")
+  runs[i,1] <- paste(new, sep="")
+}
+  runs <- rbind(as.tibble(matrix(nrow = 20)), runs)
+  webElem <- remDr$findElement(using = 'xpath', "//a[@class= 'pageLink-3961h'][2]/span")
+  webElem$clickElement()
+  Sys.sleep(10) 
+  remDr$screenshot(display = TRUE)
+}
+
+URLS <- read_csv("runs.csv")
+
+URLS <- unique(URLS)
+```
+
+With my list of URLS, I am now prepared to begin downloading .gpx files. 
+
+It shouldn't be too hard to tell Selenium to go to that page and download that specific file. 
+
+```{r}
+#give Selenium a URL and tell it to navigate to it. 
+remDr$navigate("https://www.mapmyrun.com/routes/view/516461260")
+remDr$screenshot(display = TRUE)
+
+webeL <- remDr$findElement(using = "xpath", "//a[@id = 'export_this_route']")
+webeL$clickElement()
+remDr$screenshot(display = TRUE)
+
+webEl <- remDr$findElement(using = "xpath", "//input[@id = 'export_route_gpx_btn']")
+webEl$clickElement()
+remDr$screenshot(display = TRUE)
+
+```
+
+
+It worked for one. Now it needs to go for the whole loop.
+#Loop to download all
+
+```{r}
+
+#sets the amount of time in milliseconds that the driver should wait when searching for elements. Essential!
+remDr$setTimeout(type = "implicit", milliseconds = 100000)
+
+#sets how long it should wait for the page to load
+remDr$setTimeout(type = "page load", milliseconds = 100000)
+
+for (i in 1:20000){
+  remDr$navigate(paste0(URLS[i,]))
+  webeL1 <- remDr$findElement(using = "xpath", "//a[@id = 'export_this_route']")
+  #often Selenium would click to open the widget, but the widget wouldn't open. So I set a while loop- as long as the html has not changed, keep on clicking. 
+  while(length(remDr$findElements(using= "xpath", "//div[@class='ui-widget-overlay']"))==0){
+        webeL1$clickElement()
+    }
+        #We need to find the change that occurs on the page when the export button is clicked; that is the only way. 
+#Coupled with this solution is the idea that sometimes it clicks but doesn't go to the next page, then the best idea would be simply to ask it to click once again I believe. For that I use a while loop that asks whether the expected product has appeared, until it has appeared, continue clicking. 
+  #the part of the html that changes when that button is clicked. This tells Selenium to wait until this is findable to try to click the next button.
+  webEl2 <- remDr$findElement(using = "xpath", "//form[@id= 'export_route_gpx_form']/p[2]/input[@name = 'btnExportGPX' and @value='Download GPX File']")
+  webEl2$clickElement()
+}
+
+#figure out where you ended up at. 
+newRLS <- URLS %>%
+  mutate(row = 1:nrow(URLS)) %>%
+  filter(str_detect(V1, "628079342"))
+```
+
+#Combine the .gpx's
+```{r}
+#first, get the names of all the gps's we have in the folder.
+data <- list.files(pattern = "gpx$") %>%
+  as.tibble()
+
+#Use the readOGR function to get their coords.
+#DO first one to get head together
+gps <- readOGR(dsn = paste0(data2[8909,]), "tracks")
+gps <- coordinates(gps)[[1]][[1]]%>%
+    as.tibble() %>%
+    unique()
+gps <- gps %>%
+  mutate(RunID = paste0(data2[4186,]))
+
+#set up for loop
+for (i in 8910:nrow(data2)){
+  gps2 <- readOGR(dsn = paste0(data[i,]), "tracks") 
+  gps2 <- coordinates(gps2)[[1]][[1]] %>%
+    as.tibble() %>%
+    unique()
+  
+  gps2 <- gps2 %>%
+    mutate(RunID = paste0(data2[i,]))
+    
+  gps <- rbind(gps, gps2)
+}
+
+FirstSetCOord <- read_csv("First+SecondSetOfCoordinates09202018.csv")
+
+#need to figure out what is the files I have already turned into coordinates list
+listOfFilesInFirstAndSecondSetOfCoordinates <- FirstSetCOord %>%
+  group_by(RunID) %>%
+  summarise(n=n())
+
+listOfFiles <- read_csv("listOfFilesInFirstAndSecondSetOfCoordinates.csv") %>%
+  as.tibble()
+
+#to make sure i dont repeat, let's anti-join the ones that have been done.
+data2 <- data %>%
+  anti_join(listOfFiles, by = c("value"="RunID")) 
+```
+
+#Calculating the number of each
+Try rounding
+
+```{r, eval=FALSE}
+#round off first_coord
+
+#all_coords must be the full list. 
+all_coords2 <- all_coords %>%
+  mutate_at(c("V1", "V2"), funs(round(., 4)))
+
+#now filter unique coordinates- but did I?
+
+count_all_coords2 <- all_coords2 %>%
+  group_by(V1, V2) %>%
+  summarise(n=n())
+
+colnames(count_all_coords2) <- c("lon", "lat", "n")
+
+#remove the ones outsid of the city or county
+count_gps <- count_gps %>%
+  filter(lon >-76.89667 & lon < -76.33517 & lat > 39.20750 & lat < 39.72889)
+
+count_gps_filtered <- count_gps %>%
+  filter(n>50)
+#the mean of count_gps is -76.6363, 39.3622
+median(count_gps$lon)
+median(count_gps$lat)
+
+map <- get_map(location = c(-76.5856, 39.2839), maptype = "toner-background", zoom = 11)
+
+ggmap(map) +
+  geom_point(data = count_gps, aes(color = n))
+
+ggplot(count_gps) +
+  geom_point(aes(color = n))
+
+county <- map_data("county")
+
+#what counties exist in maryland? i'm now trying with the maps package
+county %>%
+  filter(region == "maryland") %>%
+  group_by(subregion) %>%
+  summarise(n=n())
+
+balt <- county %>%
+  filter(str_detect(subregion, "baltimore "))
+
+ggplot() + 
+  geom_polygon(data = balt, aes(x=long, y = lat, group=group), fill= "NA", color="red") + 
+  coord_fixed(1.3) +
+  geom_point(data = count_gps_filtered, aes(x=lon, y = lat, color = n), size=1) #+
+  scale_fill_gradient(trans = "log10")
+
+```
+
+The solution will be not to round but to take the average of some subset of points. I will determine the central point around which the runners are vacillating.Probably the simplest way is to ask- is there any latitude and longitude that is within .0005 of you that has been run more times than you... 
+
+Stamen has interesting maps
+
+#Mapping
+For the mapping, www.r-graph-gallery.com/map/ explains the options well: 
+
+1. "Google background + interactive map = the leaflet library"
+
+2. "Google background + static map = the ggmap library"
+
+3. The R maps library
+
+According to another good one, [all this blog](https://allthisblog.wordpress.com/2016/10/12/r-311-with-leaflet-tutorial/), 
+a web map contains three components: Map tiles, geodata, and html/css/javascript.
+
+He defines html/css/js nicely: HTML is for the structure, the skeleton, CSS sets thestyle of the webpage, and Javascript is for all of the interactivity. The steps he lists for using leaflet in R:
+Load up leaflet library
+Write R code that is translated into html/css/javascript
+Put your code into a .html file
+
+
+
+
+#Combining the datasets
+```{r}
+coords1 <- read_csv("First+SecondSetOfCoordinates09202018.csv")
+
+coords2 <- read_csv("thirdSetOfCoordsReal.csv")
+
+coords3 <- read_csv("FourthSetOfCoordinates.csv")
+
+coords4 <- read_csv("5thSetOfCoordinates.csv")
+
+all_coords <- rbind(coords1, coords2, coords3, coords4)
+
+write_csv(all_coords, "allCoordinates.csv")
+
+write_csv(count_all_coords2, "countAllCoordinates.csv")
+
+```

@@ -3,43 +3,76 @@ title: "Leaflet_Section_of_Map_My_Run"
 output: html_document
 ---
 
-Things I am learning- how important it is to use git really. I installed Git. This is the path to where it is installed: C:\Program Files\Git\bin. Used [this](https://r-bio.github.io/git-installation/)
+Things I am learning- how important it is to use git really. I installed Git. 
+This is the path to where it is installed: C:\Program Files\Git\bin. Used [this](https://r-bio.github.io/git-installation/)
 
 Projects are important for some reason. 
 
-"SSH is a network protocol for securely communicating between computers"[here](http://blog.robertelder.org/what-is-ssh/). Often this means that you use an SSH client to connect to another comp's SSH server to run commands on that computer. 
+"SSH is a network protocol for securely communicating between computers"[here](http://blog.robertelder.org/what-is-ssh/). Often this means 
+that you use an SSH client to connect to another comp's SSH server to run 
+commands on that computer. 
 
-So if I want to do a command on another computer, at IP address 192.168.123, using my username, and the command is "ls", I type 
+So if I want to do a command on another computer, at IP address 192.168.123, 
+using my username, and the command is "ls", I type 
 `ssh robert@192.168.0.123 "ls"`
 
-An IP address, IP stands for Internet Protocol. It's your computer's unique address. IP address has network ID and Host ID. The network part, is like what you share, the host is your own separate computer.
+An IP address, IP stands for Internet Protocol. It's your computer's unique 
+address. IP address has network ID and Host ID. The network part, is like what 
+you share, the host is your own separate computer.
 
 Laptop is not server. It connects through ISP to internet wires. 
 
-A SSH key consists of a public and a private- it's a key pair. You have your private version and there's a public one people can use to access. 
+A SSH key consists of a public and a private- it's a key pair. You have your 
+private version and there's a public one people can use to access. 
 
-RSA is an authenitcation [protocol](https://www.ibm.com/developerworks/library/l-keyc/index.html)
+RSA is an authenitcation 
+[protocol](https://www.ibm.com/developerworks/library/l-keyc/index.html)
 
 OpenSSH is a free version of SSH. 
 
-Windows does not contain a SSH client but GIt has one (when you download the Windows version.)
-So the public key is ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQDvjalcjbkheVHg+EbgDvGnwokAKPPwY+EIKVebNTRlJX/VdDM+Wclgvs1SYpN32ZgGtwEt6DfU9xkcIlrZ7UkU+VlHEs6FlXf2IQV517dc3vGcSxThW2oxAe17PGA3O2iw+tM2xR02t6IQ90HkThP5MlxLCZjw/KKI/eI7opFomO7wzhcRlNm6dPrfJJ7luQSuza/ynwOMVHIP563cd6ozIw67zeHxU3RFs4z7HIsLmO63nFfyCHDwXaoyzN5p4HuJoYC7LPmyHMM6nNlvIsveXd/B0qsc54qGDbzCF4UUVV8+2lBzMZQvjuzg/B8XVFY2lRq/qXYSxAejjgJGVkQx jesse@BabyGirl
+Windows does not contain a SSH client but GIt has one (when you download the 
+Windows version.)
+So the public key is 
 
-Hadley Wickham writes about why to use Git and Github. It is easy to share packages. If someone sees something gross about your package, they use a pull request. Git shows you all the changes in a new version of a file. 
+ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQDvjalcjbkheVHg+EbgDvGnwokAKPPwY+EIKVebNTRl
+JX/VdDM+Wclgvs1SYpN32ZgGtwEt6DfU9xkcIlrZ7UkU+VlHEs6FlXf2IQV517dc3vGcSxThW2oxAe17
+PGA3O2iw+tM2xR02t6IQ90HkThP5MlxLCZjw/KKI/eI7opFomO7wzhcRlNm6dPrfJJ7luQSuza/ynwOM
+VHIP563cd6ozIw67zeHxU3RFs4z7HIsLmO63nFfyCHDwXaoyzN5p4HuJoYC7LPmyHMM6nNlvIsveXd/B
+0qsc54qGDbzCF4UUVV8+2lBzMZQvjuzg/B8XVFY2lRq/qXYSxAejjgJGVkQx jesse@BabyGirl
 
-When you set up a new project with Git, there is a toolbar with the common Git commands. But, there are 150 Git commands, and only some are in R, so you need to be able to use it from the shell (or command line). You get to the shell by clicking Tools -> Shell, this opens up a bash shell. 
+Hadley Wickham writes about why to use Git and Github. It is easy to share 
+packages. If someone sees something gross about your package, they use a pull 
+request. Git shows you all the changes in a new version of a file. 
 
-So the trick is connecting Git to Github. So you need to tell GIT the same email address at GITHUB.
-"You can use SSH to securely tunnel other services through an SSH connection". If you have your git repo at home, you can use SSH to clone it to GitHub. 
+When you set up a new project with Git, there is a toolbar with the common Git 
+commands. But, there are 150 Git commands, and only some are in R, so you need 
+to be able to use it from the shell (or command line). You get to the shell by 
+clicking Tools -> Shell, this opens up a bash shell. 
 
-By running file.exists("C:/Users/Jesse/.ssh/id_rsa.pub") I see there is a public key. 
+So the trick is connecting Git to Github. So you need to tell GIT the same email 
+address at GITHUB.
+"You can use SSH to securely tunnel other services through an SSH connection". 
+If you have your git repo at home, you can use SSH to clone it to GitHub. 
 
-The unit of work in GIT is a commit. It takes a snapshot of your code. To commit you "stage" files, meaning tell Git which changes to include, and then you do it.
+By running file.exists("C:/Users/Jesse/.ssh/id_rsa.pub") I see there is a public
+key. 
 
-Every commit has 5 components: identifier (SHA), changeset (everything that was changed), commit-message for humans, the parent, and the author. So essentially you do work, save it, then commit it. 
+The unit of work in GIT is a commit. It takes a snapshot of your code. To commit 
+you "stage" files, meaning tell Git which changes to include, and then you do 
+it.
 
-After committing, we need to push to Github. We can do that through GitBash..
-So I only need the count_all_coords_2 file to continue from here. I mean, also the all_coords is needed for when I redo my rounding. But moving forward with leaflet, I would only be using that one csv. 
+Every commit has 5 components: identifier (SHA), changeset (everything that was 
+changed), commit-message for humans, the parent, and the author. So essentially
+you do work, save it, then commit it. 
+
+After committing, we need to push to Github. We can do that through GitBash.
+
+Also, the reason I could not see the .git file was because Windows was hiding
+certain files. But now I changed those settings so now I can see that it exists.
+
+So I only need the count_all_coords_2 file to continue from here. I mean, also 
+the all_coords is needed for when I redo my rounding. But moving forward with
+leaflet, I would only be using that one csv. 
 
 I need to use a chloropeth. 
 
@@ -49,9 +82,12 @@ library(leaflet)
 count_all_coords <- read_csv("countAllCoordinates.csv")
 ```
 
-First, bin the data in count_all_coords. The current range of the data is 1-6222. The log range is from 0 - 3.788, which seems more reasonable. 
+First, bin the data in count_all_coords. The current range of the data is
+1-6222. The log range is from 0 - 3.788, which seems more reasonable. 
 
-I do not think I need to bin it, instead use it as continuous. I can use the colorNumeric function to turn continuous numeric data into colors. But I need to choose a palette. Possible ones are "viridis palettes", RColorBrewer palettes
+I do not think I need to bin it, instead use it as continuous. I can use the 
+colorNumeric function to turn continuous numeric data into colors. But I need to 
+choose a palette. Possible ones are "viridis palettes", RColorBrewer palettes
 
 ```{r}
 #Binning counts
@@ -91,16 +127,26 @@ r_birthplace_map <- leaflet() %>%
 r_birthplace_map
 ```
 
-The addTiles function is part of addControl, which is about adding graphic elements and layers. You can addPopups, addMarkers, addCircles, addPolylines, addRectangles, addPolygons.
+The addTiles function is part of addControl, which is about adding graphic 
+elements and layers. You can addPopups, addMarkers, addCircles, addPolylines, addRectangles, addPolygons.
 
 What is geoJSON? 
-It is a ["format for encoding a variety of geographic data structures"](http://geojson.org/)
+It is a 
+["format 4 encoding variety of geographic data structures"](http://geojson.org/)
 
-What is JSON? It is a [lightweight data-interchange format](https://www.json.org/) It has objects, which are name/value pairs, and it has an ordered list of values. 
+What is JSON? It is a 
+[lightweight data-interchange format](https://www.json.org/) It has objects, 
+which are name/value pairs, and it has an ordered list of values. 
 
-JSON stands for [Java Script Object Notation](https://www.w3schools.com/js/js_json_intro.asp). Really the reason, when you exchange data, it has to be in text. JSON is text. We can convert any javasrcipt object into JSON, and vice versa. 
+JSON stands for 
+[Java Script Object Notation](https://www.w3schools.com/js/js_json_intro.asp). 
+Really the reason, when you exchange data, it has to be in text. JSON is text. 
+We can convert any javasrcipt object into JSON, and vice versa. 
 
-A Javascript object is one of the seven basic data types. Unlike the other data types (numbers, strings, boolean, null, undefined (except for symbol)), which are primitive, meaning they can only hold one type of thing, the object can contain complex data collections.
+A Javascript object is one of the seven basic data types. Unlike the other data
+types (numbers, strings, boolean, null, undefined (except for symbol)), which 
+are primitive, meaning they can only hold one type of thing, the object can
+contain complex data collections.
 
 ```{r}
 #Following the chloropeth tutorial on R Leaflet

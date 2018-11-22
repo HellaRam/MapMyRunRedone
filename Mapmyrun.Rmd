@@ -94,8 +94,11 @@ The 27 GPS satellites (24 in use and 3 as back-up in case others fail) are
 positioned such that any user anywhere on Earth can access four satellites, 
 which is the necessary number for accurate positioning. The GPS receiver in your 
 phone determines the distance to each satellite and combines that information to 
-deduce the receiver's own location through [trilaterion](https://electronics.howstuffworks.com/gadgets/travel/gps.htm). 
-Each GPS satellite is [constantly transmitting radio waves](http://www.physics.org/article-questions.asp?id=55) which contain the 
+deduce the receiver's own location through 
+[trilaterion](https://electronics.howstuffworks.com/gadgets/travel/gps.htm). 
+Each GPS satellite is 
+[constantly transmitting radio waves](http://www.physics.org/article-questions.asp?id=55) 
+which contain the 
 time and location at which they were sent. When these signals reach your 
 receiver, the difference in time between when they were sent and received 
 multiplied by the speed of light is the distance between you and the satellite. 
@@ -151,6 +154,7 @@ looks, and plot it.
 library(tidyverse)
 library(RSelenium)
 library(leaflet)
+library(data.table) #to read in big excel files
 
 #library(XML)
 library(rgdal) #this is used for readOGR
@@ -197,6 +201,7 @@ head(first_coord)
 ```
 
 #Scraping .gpx files for all runs
+##Setting up Selenium quickly
 
 We can obtain a .gpx file from MapMyRun's website and turn it into a tidy tibble 
 containing all coordinates ran. Now the question is can we do this for all of 
@@ -210,7 +215,7 @@ I published a tutorial on everything you need to set up Docker and Selenium
 ```{r}
 
 #This setting is very important. You need to set your default directory to a 
-directory in Docker, that you then connect to your own computer. 
+#directory in Docker, that you then connect to your own computer. 
 eCaps <- list(
   chromeOptions = 
     list(prefs = list(
@@ -230,6 +235,7 @@ remDr$open()
 To download routes in MapMyRun, it is necessary to first login to your account. 
 So we start by accessing the MapMyRun homepage. 
 
+##How to Do it for One .gpx run
 ```{r}
 #go to mapmyrun home page
 remDr$navigate("https://www.mapmyrun.com")
@@ -266,8 +272,9 @@ remDr$screenshot(display = TRUE)
 
 #we're in! Now I want to go to the routes page. It's in a dropdown, so I need to 
 #navigate there to open the dropdown. 
-#best try so far
-routes <- remDr$findElement(using = "xpath", "//header/div[1]/nav[1]/ul/li[2]/a")
+
+routes <- remDr$findElement(using = 
+                              "xpath", "//header/div[1]/nav[1]/ul/li[2]/a")
 remDr$mouseMoveToLocation(webElement = routes)
 remDr$screenshot(display = TRUE)
 
@@ -289,13 +296,6 @@ remDr$screenshot(display = TRUE)
 
 Now we are at the website--- what are we doing? We need to tell Selenium to put 
 information somewhere, download the URLs that come up, then go to the next page. 
-
-We will communicate with it using HTML and CSS.
-
-Something I learned is that you need the html to have input somewhere if you are 
-going to input. 
-
-So there are 4 css things that have the value input. 
 
 ```{r}
 #the website now has "United States" in the "Near" selection. Need to select 
@@ -379,6 +379,7 @@ Now, can I loop through all of the webpages, saving them all in the table?
 There are now 383,321 uploaded runs. If there are 20 per page, we need to access 
 19,191 pages
 
+#The repeated Process - after being logged in.
 ```{r}
 #whole process
 
@@ -386,18 +387,19 @@ There are now 383,321 uploaded runs. If there are 20 per page, we need to access
 remDr$navigate("https://mapmyrun.com/routes")
 remDr$screenshot(display = TRUE)
 
-#scroll down
+#scroll down to make sure the web element is on the page. 
 webElem2 <- remDr$findElement("css", "body")
 webElem2$sendKeysToElement(list(key = "start"))
 remDr$screenshot(display = TRUE)
 
-#change window size
+#change window size to make sure web element is there. 
 remDr$setWindowSize(1096, 1604)
 remDr$screenshot(display = TRUE)
 
 #initialize starter matrix
 runs <- as.tibble(matrix(nrow = 20))
 
+#this first part is just for the first page. 
 #save the links on this first page
 links <- remDr$findElements('xpath', "//a[contains(@href, 'routes/view')]")
 
@@ -416,6 +418,9 @@ webElem <- remDr$findElement(using = 'xpath',
 webElem$clickElement()
 remDr$screenshot(display = TRUE)
 
+#Now here is the while loop that will truly repeat. 
+#this tells it, as long as at the bottom of the page there is a previous and 
+#next button, to go ahead and download the links specified above on the page. 
 while (length(remDr$findElements(using = 'xpath', 
                                  "//a[@class= 'pageLink-3961h']/span")) == 2){
   links <- remDr$findElements('xpath', "//a[contains(@href, 'routes/view')]")
@@ -433,15 +438,29 @@ for (i in 1:length(links)){
   remDr$screenshot(display = TRUE)
 }
 
+#We wrote all of this to the CSV entitled Runs. 
+#There are 56060 URLs rows, except 20 are NAs. However, some of them are
+#repeated because I had to rerun the loop and did not cut off exactly correctly.
+#Therefore, after reading in the csv, I am going to see how many unique 
+#values there are. 
 URLS <- read_csv("runs.csv")
-
 URLS <- unique(URLS)
+
+#So there was an overlap of 6,000 or so URLs, and our final number is 44,882. 
+#I am now going to save this as "URL_links_to_gpx_files.csv" and delete runs.csv
+
+write_csv(URLS, "URL_links_to_gpx_files.csv")
+
 ```
 
 With my list of URLS, I am now prepared to begin downloading .gpx files. 
 
 It shouldn't be too hard to tell Selenium to go to that page and download that 
 specific file. 
+
+This step is going to each URL, clicking on download .gpx, then going to the
+next URL and repeating. So in this step I did not need to save anything, it was
+only putting files in a folder. 
 
 ```{r}
 #give Selenium a URL and tell it to navigate to it. 
@@ -467,17 +486,19 @@ It worked for one. Now it needs to go for the whole loop.
 
 #sets the amount of time in milliseconds that the driver should wait when 
 #searching for elements. Essential!
-
 remDr$setTimeout(type = "implicit", milliseconds = 100000)
 
 #sets how long it should wait for the page to load
 remDr$setTimeout(type = "page load", milliseconds = 100000)
 
 for (i in 1:20000){
+
+  #Go through the URL from the URL_links_to_gpx_files.csv
   remDr$navigate(paste0(URLS[i,]))
   webeL1 <- remDr$findElement(using = "xpath", "//a[@id = 'export_this_route']")
-  #often Selenium would click to open the widget, but the widget wouldn't open. 
-  #So I set a while loop- as long as the html has not changed, keep on clicking. 
+  
+#often Selenium would click to open the widget, but the widget wouldn't open. 
+#So I set a while loop- as long as the html has not changed, keep on clicking. 
   while(length(remDr$findElements(using= "xpath", 
                                   "//div[@class='ui-widget-overlay']"))==0){
         webeL1$clickElement()
@@ -503,77 +524,123 @@ newRLS <- URLS %>%
   filter(str_detect(V1, "628079342"))
 ```
 
+
 #Combine the .gpx's
 ```{r}
-#first, get the names of all the gps's we have in the folder.
-data <- list.files(pattern = "gpx$") %>%
+#first, get the names of all the gps's we have in the folder. We use the regex
+#"gpx$" to say that it ends with gpx
+List_of_all_downloaded_gpx_files <- list.files(
+path = "C:/Users/Jesse/Programming/R/Map My Run Redone/.gpx files", 
+                   pattern = "gpx$") %>%
   as.tibble()
 
+#I was able to verify that there is no duplication. There are exactly 18298 .gpx
+#files. 
+
+#We save this information
+write_csv(List_of_all_downloaded_gpx_files, 
+          "List_of_all_downloaded_gpx_files.csv")
+
+#Now we want to open all of those and turn them into coordinates. 
 #Use the readOGR function to get their coords.
-#DO first one to get head together
-gps <- readOGR(dsn = paste0(data2[8909,]), "tracks")
+#Here is the example
+#these steps create the coordinates.
+gps <- readOGR(dsn = paste0(List_of_all_downloaded_gpx_files[1,]), "tracks")
 gps <- coordinates(gps)[[1]][[1]]%>%
     as.tibble() %>%
     unique()
-gps <- gps %>%
-  mutate(RunID = paste0(data2[4186,]))
 
-#set up for loop
-for (i in 8910:nrow(data2)){
-  gps2 <- readOGR(dsn = paste0(data[i,]), "tracks") 
+#this step labels it with its URL, from which we could later obtain dates, 
+#even the name of the person who did the run. 
+gps <- gps %>%
+  mutate(RunID = paste0(List_of_all_downloaded_gpx_files[1,]))
+
+#Now we do this as a loop. 
+for (i in 1:nrow(List_of_all_downloaded_gpx_files)){
+
+#create a file called gps that each coordinate will be added on to.
+#create a temporary file called gps2 for each coordinate. 
+  gps2 <- readOGR(dsn = paste0(List_of_all_downloaded_gpx_files[i,]), "tracks") 
   gps2 <- coordinates(gps2)[[1]][[1]] %>%
     as.tibble() %>%
     unique()
   
   gps2 <- gps2 %>%
-    mutate(RunID = paste0(data2[i,]))
+    mutate(RunID = paste0(List_of_all_downloaded_gpx_files[i,]))
     
   gps <- rbind(gps, gps2)
 }
 
-FirstSetCOord <- read_csv("First+SecondSetOfCoordinates09202018.csv")
+#This was done in 5 iterations. In the end these were bound together to form
+#allCoordinates.csv
 
-#need to figure out what is the files I have already turned into coordinates 
-#list
-listOfFilesInFirstAndSecondSetOfCoordinates <- FirstSetCOord %>%
+#let's read that in. 
+all_coordinates <- fread(
+  "all_coordinates_possibly_rounded_but_probably_unfiltered.csv")
+
+#I need to check whether I turned all of the .gpx files into coordinates. 
+list_of_gpx_files_convered_to_coordinates <- all_coordinates %>%
   group_by(RunID) %>%
   summarise(n=n())
 
-listOfFiles <- read_csv("listOfFilesInFirstAndSecondSetOfCoordinates.csv") %>%
-  as.tibble()
+#it appears that there 18293 gpx files that were converted. So I am missing 5, 
+#luckily, that's nothing to lose sleep over.
 
-#to make sure i dont repeat, let's anti-join the ones that have been done.
-data2 <- data %>%
-  anti_join(listOfFiles, by = c("value"="RunID")) 
+#save this list!
+write_csv(list_of_gpx_files_convered_to_coordinates, 
+          "List_of_gpx_files_convered_to_coordinates.csv")
+
 ```
 
 #Calculating the number of each
-Try rounding
+I am rounding to 4 decimal points, so that there is a better chance two runners
+go over the same spot. 
 
 ```{r, eval=FALSE}
 #round off first_coord
 
-#all_coords must be the full list. 
-all_coords2 <- all_coords %>%
+rounded_all_coordinates <- all_coordinates %>%
   mutate_at(c("V1", "V2"), funs(round(., 4)))
 
-#now filter unique coordinates- but did I?
+#However, this may lead to the same coordinate being counted twice for the same
+#runner-which is not fair. If a coordinate shows up, that should mean that their
+#was one runner who went on it, not multiple. 
+#Therefore, now I need to filter for only unique coordinates.
+#I can simply use the unique function, because then only coordinates that are 
+#same with the same runID will be deleted. 
 
-count_all_coords2 <- all_coords2 %>%
+rounded_all_coordinates <-unique(rounded_all_coordinates)
+
+#save files
+write_csv(rounded_all_coordinates , "All_coordinates_rounded_and_filtered.csv")
+
+#Count how many times each coordinate appears
+count_all_coordinates <- rounded_all_coordinates %>%
   group_by(V1, V2) %>%
   summarise(n=n())
 
-colnames(count_all_coords2) <- c("lon", "lat", "n")
+#must ungroup after
+count_all_coordinates <- count_all_coordinates %>%
+  ungroup()
 
-#remove the ones outsid of the city or county
-count_gps <- count_gps %>%
-  filter(lon >-76.89667 & lon < -76.33517 & lat > 39.20750 & lat < 39.72889)
+colnames(count_all_coordinates) <- c("lon", "lat", "n")
 
-count_gps_filtered <- count_gps %>%
-  filter(n>50)
-#the mean of count_gps is -76.6363, 39.3622
-median(count_gps$lon)
-median(count_gps$lat)
+#Save!
+write_csv(
+  count_all_coordinates, 
+  "All_coordinates_rounded_filtered_but_including_non_Baltimore_address.csv")
+
+#remove the ones outside of the city or county
+#39.2, -76.8 is near Columbia, which seems fair, and 39.7, -76.3 is nearly in 
+#Lancaster. I also had some reason for doing this but now can't remember, but 
+#these numbers seem fine.  
+count_all_coordinates <- count_all_coordinates %>%
+  filter(lon > -76.8 & lon < -76.3 & lat > 39.2 & lat < 39.7)
+
+```
+
+#Dumb map games
+```{r}
 
 map <- get_map(location = c(-76.5856, 39.2839), maptype = "toner-background", 
                zoom = 11)
@@ -632,20 +699,4 @@ Load up leaflet library
 Write R code that is translated into html/css/javascript
 Put your code into a .html file
 
-#Combining the datasets
-```{r}
-coords1 <- read_csv("First+SecondSetOfCoordinates09202018.csv")
 
-coords2 <- read_csv("thirdSetOfCoordsReal.csv")
-
-coords3 <- read_csv("FourthSetOfCoordinates.csv")
-
-coords4 <- read_csv("5thSetOfCoordinates.csv")
-
-all_coords <- rbind(coords1, coords2, coords3, coords4)
-
-write_csv(all_coords, "allCoordinates.csv")
-
-write_csv(count_all_coords2, "countAllCoordinates.csv")
-
-```

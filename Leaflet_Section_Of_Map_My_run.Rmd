@@ -3,73 +3,6 @@ title: "Leaflet_Section_of_Map_My_Run"
 output: html_document
 ---
 
-Things I am learning- how important it is to use git really. I installed Git. 
-This is the path to where it is installed: C:\Program Files\Git\bin. Used [this](https://r-bio.github.io/git-installation/)
-
-Projects are important for some reason. 
-
-"SSH is a network protocol for securely communicating between computers"[here](http://blog.robertelder.org/what-is-ssh/). Often this means 
-that you use an SSH client to connect to another comp's SSH server to run 
-commands on that computer. 
-
-So if I want to do a command on another computer, at IP address 192.168.123, 
-using my username, and the command is "ls", I type 
-`ssh robert@192.168.0.123 "ls"`
-
-An IP address, IP stands for Internet Protocol. It's your computer's unique 
-address. IP address has network ID and Host ID. The network part, is like what 
-you share, the host is your own separate computer.
-
-Laptop is not server. It connects through ISP to internet wires. 
-
-A SSH key consists of a public and a private- it's a key pair. You have your 
-private version and there's a public one people can use to access. 
-
-RSA is an authenitcation 
-[protocol](https://www.ibm.com/developerworks/library/l-keyc/index.html)
-
-OpenSSH is a free version of SSH. 
-
-Windows does not contain a SSH client but GIt has one (when you download the 
-Windows version.)
-So the public key is 
-
-ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQDvjalcjbkheVHg+EbgDvGnwokAKPPwY+EIKVebNTRl
-JX/VdDM+Wclgvs1SYpN32ZgGtwEt6DfU9xkcIlrZ7UkU+VlHEs6FlXf2IQV517dc3vGcSxThW2oxAe17
-PGA3O2iw+tM2xR02t6IQ90HkThP5MlxLCZjw/KKI/eI7opFomO7wzhcRlNm6dPrfJJ7luQSuza/ynwOM
-VHIP563cd6ozIw67zeHxU3RFs4z7HIsLmO63nFfyCHDwXaoyzN5p4HuJoYC7LPmyHMM6nNlvIsveXd/B
-0qsc54qGDbzCF4UUVV8+2lBzMZQvjuzg/B8XVFY2lRq/qXYSxAejjgJGVkQx jesse@BabyGirl
-
-Hadley Wickham writes about why to use Git and Github. It is easy to share 
-packages. If someone sees something gross about your package, they use a pull 
-request. Git shows you all the changes in a new version of a file. 
-
-When you set up a new project with Git, there is a toolbar with the common Git 
-commands. But, there are 150 Git commands, and only some are in R, so you need 
-to be able to use it from the shell (or command line). You get to the shell by 
-clicking Tools -> Shell, this opens up a bash shell. 
-
-So the trick is connecting Git to Github. So you need to tell GIT the same email 
-address at GITHUB.
-"You can use SSH to securely tunnel other services through an SSH connection". 
-If you have your git repo at home, you can use SSH to clone it to GitHub. 
-
-By running file.exists("C:/Users/Jesse/.ssh/id_rsa.pub") I see there is a public
-key. 
-
-The unit of work in GIT is a commit. It takes a snapshot of your code. To commit 
-you "stage" files, meaning tell Git which changes to include, and then you do 
-it.
-
-Every commit has 5 components: identifier (SHA), changeset (everything that was 
-changed), commit-message for humans, the parent, and the author. So essentially
-you do work, save it, then commit it. 
-
-After committing, we need to push to Github. We can do that through GitBash.
-
-Also, the reason I could not see the .git file was because Windows was hiding
-certain files. But now I changed those settings so now I can see that it exists.
-
 So I only need the count_all_coords_2 file to continue from here. I mean, also 
 the all_coords is needed for when I redo my rounding. But moving forward with
 leaflet, I would only be using that one csv. 
@@ -79,28 +12,53 @@ I need to use a chloropeth.
 ```{r}
 library(tidyverse)
 library(leaflet)
-count_all_coords <- read_csv("countAllCoordinates.csv")
+count_all_coords <- read_csv(
+  "All_coordinates_rounded_and_filtered_only_Bmore.csv")
 ```
 
-First, bin the data in count_all_coords. The current range of the data is
-1-6222. The log range is from 0 - 3.788, which seems more reasonable. 
+Maybe a good thing would be to visualize the range of the data that we have. 
+
+```{r}
+ggplot(count_all_coords, aes(n)) +
+  geom_histogram(binwidth = 1, center= 0.5)+
+  coord_cartesian(xlim =c(0,100))
+
+ggplot(count_all_coords, aes(Log_n)) +
+  geom_histogram(binwidth = .25, center=0.125)
+```
+
+
+```{r}
+
+
+count_all_coords %>%
+  group_by(n) %>%
+  summarise(yo=n())
+```
+
+The current range of the data is 1-600 or so.
 
 I do not think I need to bin it, instead use it as continuous. I can use the 
 colorNumeric function to turn continuous numeric data into colors. But I need to 
 choose a palette. Possible ones are "viridis palettes", RColorBrewer palettes
 
 ```{r}
-#Binning counts
-
-#log transform
-new <- count_all_coords %>%
-  mutate("Log_N" = log10(n))
-
 #now I need to turn continuous data into a color palette. 
-color_palette <- colorNumeric("plasma", domain = new$Log_N)
+color_palette <- colorNumeric("plasma", domain = count_all_coords$n)
 
-new2 <- new %>%
-  mutate(Color = color_palette(Log_N))
+count_all_coords <- count_all_coords %>%
+  mutate(Color = color_palette(n))
+
+#Try to do Log instead. 
+count_all_coords <- count_all_coords %>%
+  mutate(Log_n = log10(count_all_coords$n))
+
+log_color_palette <- colorNumeric("viridis", domain = count_all_coords$Log_n)
+
+count_all_coords <- count_all_coords %>%
+  mutate(log_Color = log_color_palette(Log_n))
+
+#Could try 
 ```
 
 Now I want to add those colors to the map
@@ -110,22 +68,18 @@ Now I want to add those colors to the map
 
 m=leaflet()
 
-m=addTiles(m)
+m=addTiles(m, urlTemplate = "http://{s}.tiles.wmflabs.org/bw-mapnik/{z}/{x}/{y}.png")
 
-new3 <- new2[1:100,]
+count_all_coords_practice <- count_all_coords[seq(1,nrow(count_all_coords),10),]
+
+#addPolygons doen't work, they're too big. 
 m %>%
-  addPolygons(new3$lon, new3$lat, color = new3$Color)
+  addCircles(count_all_coords$lon, count_all_coords$lat, 
+              color = count_all_coords$log_Color)
 
+m
 ```
 
-Need to turn count_all_coords to numeric. 
-```{r}
-r_birthplace_map <- leaflet() %>%
-  addTiles() %>%  # use the default base map which is OpenStreetMap tiles
-  addMarkers(lng=174.768, lat=-36.852,
-             popup="The birthplace of R")
-r_birthplace_map
-```
 
 The addTiles function is part of addControl, which is about adding graphic 
 elements and layers. You can addPopups, addMarkers, addCircles, addPolylines, addRectangles, addPolygons.
@@ -147,14 +101,4 @@ A Javascript object is one of the seven basic data types. Unlike the other data
 types (numbers, strings, boolean, null, undefined (except for symbol)), which 
 are primitive, meaning they can only hold one type of thing, the object can
 contain complex data collections.
-
-```{r}
-#Following the chloropeth tutorial on R Leaflet
-install.packages("geojsonio")
-library("geojsonio")
-
-countries <- readOGR("json/countries.geojson", "OGRGeoJSON")
-
-class(states)
-```
 

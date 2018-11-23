@@ -1,6 +1,10 @@
 .Rproj.user
 .Rhistory
-.RData
-.Ruserdata
-countAllCoordinates.csv
 .gpx files
+URL_links_to_gpx_files.csv
+List_of_all_downloaded_gpx_files.csv
+List_of_gpx_files_convered_to_coordinates.csv
+All_coordinates_rounded_and_filtered 2.csv
+All_coordinates_rounded_and_filtered_only_Bmore 4.csv
+All_coordinates_rounded_filtered_but_including_non_Baltimore_address 3.csv
+all_coordinates_not_rounded_or_unfiltered 1.csv

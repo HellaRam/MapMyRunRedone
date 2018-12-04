@@ -3,86 +3,219 @@ title: "Leaflet_Section_of_Map_My_Run"
 output: html_document
 ---
 
-So I only need the count_all_coords_2 file to continue from here. I mean, also 
-the all_coords is needed for when I redo my rounding. But moving forward with
-leaflet, I would only be using that one csv. 
+So I only need the "All_coordinates_rounded_and_filtered_only_Bmore.csv" file to
+continue from here, which I save below as count_all_coords.
 
 I need to use a chloropeth. 
 
 ```{r}
+#loading the packages
 library(tidyverse)
 library(leaflet)
 count_all_coords <- read_csv(
-  "All_coordinates_rounded_and_filtered_only_Bmore.csv")
+  "All_coordinates_rounded_and_filtered_only_Bmore 4.csv")
 ```
 
-Maybe a good thing would be to visualize the range of the data that we have. 
+#Log transform the data
+
+```{r}
+
+#Look at both Log2 and log10. 
+count_all_coords <- count_all_coords %>%
+  mutate(Log_10 = log10(count_all_coords$n)) #%>%
+  #mutate(Log_2 = log(count_all_coords$n, base = 2))
+
+```
+
+#Visualize the Spread of the Data
+A good thing would be to visualize the range of the data that we have. 
 
 ```{r}
 ggplot(count_all_coords, aes(n)) +
   geom_histogram(binwidth = 1, center= 0.5)+
   coord_cartesian(xlim =c(0,100))
+```
 
-ggplot(count_all_coords, aes(Log_n)) +
+We can see that it is very left skewed. 
+How does the log10-transformed data look?
+
+```{r}
+ggplot(count_all_coords, aes(Log_10)) +
   geom_histogram(binwidth = .25, center=0.125)
 ```
 
+That looks much better. How about the Log_2?
 
 ```{r}
-
-
-count_all_coords %>%
-  group_by(n) %>%
-  summarise(yo=n())
+ggplot(count_all_coords, mapping = aes(Log_2)) +
+  geom_histogram(binwidth = 1, center = 0.5)
 ```
 
-The current range of the data is 1-600 or so.
+It seems that the Log_10 data has the most normalized distribution. 
 
-I do not think I need to bin it, instead use it as continuous. I can use the 
-colorNumeric function to turn continuous numeric data into colors. But I need to 
-choose a palette. Possible ones are "viridis palettes", RColorBrewer palettes
-
+#Mapping the data on Leaflet
+##Determining a color scheme. 
 ```{r}
 #now I need to turn continuous data into a color palette. 
-color_palette <- colorNumeric("plasma", domain = count_all_coords$n)
+
+log_color_palette <- colorNumeric("magma", domain = count_all_coords$Log_10)
 
 count_all_coords <- count_all_coords %>%
-  mutate(Color = color_palette(n))
+  mutate(log_10_color = log_color_palette(Log_10))
 
-#Try to do Log instead. 
-count_all_coords <- count_all_coords %>%
-  mutate(Log_n = log10(count_all_coords$n))
+just_coords_and_colors_for_geoJSON <- count_all_coords %>%
+  select(lon, lat, log_10_color)
 
-log_color_palette <- colorNumeric("viridis", domain = count_all_coords$Log_n)
+write_csv(just_coords_and_colors_for_geoJSON, "coordsAndColorsForGeoJSON.csv")
 
-count_all_coords <- count_all_coords %>%
-  mutate(log_Color = log_color_palette(Log_n))
+coords_for_geoJSON <- read_csv("coordsandColorsforGeoJSON.csv")
 
-#Could try 
+coords_for_geoJSON <- coords_for_geoJSON %>%
+  select(lon, lat)
+
+write_csv(coords_for_geoJSON, "coordsforgeojson.csv")
+
+coords_for_geoJSON <- read_csv("C:/Users/Jesse/Programming/R/Map My Run Redone/Javascript Leaflet/coordsForGeoJSON.csv")
+
+write.table(coords_for_geoJSON,"coords.txt",row.names = FALSE, col.names= FALSE, dec=".",sep=";",eol="\\n")
+
 ```
 
-Now I want to add those colors to the map
+#Now I want to add those colors to the map
 ```{r}
-
 #practice with leaflet
+options(viewer = NULL)
 
-m=leaflet()
+#it seems canvas could be something?
+m=leaflet(options = leafletOptions(preferCanvas = TRUE)) %>%
+  addProviderTiles(providers$Esri.WorldGrayCanvas, options = providerTileOptions(
+  updateWhenZooming = FALSE,      # map won't update tiles until zoom is done
+  updateWhenIdle = TRUE           # map won't load new tiles when panning
+)) %>%
+  addCircleMarkers(lng = count_all_coords$lon, lat = count_all_coords$lat, 
+              color = count_all_coords$log_10_color)
 
-m=addTiles(m, urlTemplate = "http://{s}.tiles.wmflabs.org/bw-mapnik/{z}/{x}/{y}.png")
-
-count_all_coords_practice <- count_all_coords[seq(1,nrow(count_all_coords),10),]
+## this is the old addTiles I used. 
+#addTiles(m, urlTemplate = "http://{s}.tiles.wmflabs.org/bw-mapnik/{z}/{x}/{y}.png")
 
 #addPolygons doen't work, they're too big. 
-m %>%
-  addCircles(count_all_coords$lon, count_all_coords$lat, 
-              color = count_all_coords$log_Color)
+m
+
+```
+
+#Problems: Even though the map is loaded, it cannot show.
+Putting 1 million circleMarkers on a Leaflet map is crashing R. What have I done
+to try and fix this?
+1. Use R Studio Cloud. This also crashed. 
+2. Now trying a package called glify. This is an R "port" of leaflet glify.
+It is ["for fast web gl rendering of features on leaflet maps"](https://github.com/tim-salabim/leaflet.glify#leafletglify).
+
+WebGL is a [Javascript API for rendering interactive 3D and 3D graphics within
+any compatible web browser without the use of plug-ins.](https://developer.mozilla.org/en-US/docs/Web/API/WebGL_API)
+
+In the `addGlifyPoints` function, it appears we have three options to worry
+about: map, data and color. Map is easy, but how to get data and color in a 
+workable format?
+
+Data: In the [example](https://github.com/tim-salabim/leaflet.glify), a data 
+frame is converted into a `sf` object using the `st_as_sf` function from the 
+`sf` package. 
+
+What are simple features? Simple features [describes how objects can be 
+represented in computers, with emphasis on the spatial geometry of these 
+objects.](https://r-spatial.github.io/sf/articles/sf1.html) This standard is 
+used in GeoJSON and commercial GIS. There are 7 most common simple feature
+types (these are the ones used for GeoJSON). The type we will be using is a 
+multipoint. (I think). We also need a "coordinate reference system" or CRS. The
+"standard" one? is 4326
+
+
+
+```{r}
+library(leaflet.glify)
+library(sf)
+library(mapview)
+```
+
+```{r}
+#Turn count_all_coords into simple feature (sf)
+#this isn't working, maybe because I need to make the shape file (sf) only
+#a shape file. 
+#in the example, they have df1 with only three variables. Their df1 is also
+#a dataframe, so I made mine that. 
+
+count_all_coords_sf <- count_all_coords %>%
+  mutate(id= row_number()) %>%
+  select(id, lat, lon) %>%
+  as.data.frame()
+
+count_all_coords_sf <- st_as_sf(count_all_coords_sf, coords = c("lat", "lon"), 
+                             crs = 4326)
+
+#now, count_all_coords_sf is only a sf and a dataframe, which is what pts is in
+#the example. 
+
+#glify guy sets viewer as null to view in browser
+options(viewer = NULL)
+
+#save shape file!
+
+write_csv(count_all_coords_sf, "All_coords_values_shape_file.csv")
+
+count_all_coords_sf <- read_csv("All_coords_values_shape_file.csv")
+
+```
+
+#Change hex color list to rgb three column matrix.
+```{r}
+#I can use the col2rgb function. 
+
+#each map iteration, with the t to transpose, creates a 1 * 3 matrix.
+count_all_coords_rgb <- map(.x = count_all_coords$log_10_color, 
+                            .f = ~ t(col2rgb(.))) 
+
+count_all_coords_rgb <- do.call(rbind.data.frame, (count_all_coords_rgb))
+
+#save
+write_csv(count_all_coords_rgb, "All_coords_colors_RGB.csv")
+
+#open
+count_all_coords_rgb <- read_csv("All_coords_colors_RGB.csv")
+
+```
+Now we have our coordinates and color hopefully in the correct form. 
+
+```{r}
+n <- leaflet() %>%
+  addTiles(urlTemplate = 
+             "http://{s}.tiles.wmflabs.org/bw-mapnik/{z}/{x}/{y}.png") %>%
+  addGlifyPoints(data = count_all_coords_sf[1:100,], 
+                 color = count_all_coords_rgb[1:100,],
+                 group = "count_all_coords_sf") %>%
+  addMouseCoordinates() %>%
+  addLayersControl(overlayGroups = "count_all_coords_sf")
+
+#try with his example 
+
+system.time({
+  m = leaflet() %>%
+    addProviderTiles(provider = providers$CartoDB.DarkMatter) %>%
+    addGlifyPoints(data = pts, group = "pts") %>%
+    addMouseCoordinates() %>%
+    setView(lng = 10.5, lat = 49.5, zoom = 6) %>% 
+    addLayersControl(overlayGroups = "pts")
+})
 
 m
 ```
 
+#OK none of that worked. Now I will try 
+[Marker Clusters](https://rstudio.github.io/leaflet/markers.html) 
+
 
 The addTiles function is part of addControl, which is about adding graphic 
-elements and layers. You can addPopups, addMarkers, addCircles, addPolylines, addRectangles, addPolygons.
+elements and layers. You can addPopups, addMarkers, addCircles, addPolylines, 
+addRectangles, addPolygons.
 
 What is geoJSON? 
 It is a 

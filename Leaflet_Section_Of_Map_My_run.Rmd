@@ -11,9 +11,11 @@ I need to use a chloropeth.
 ```{r}
 #loading the packages
 library(tidyverse)
+
 library(leaflet)
-count_all_coords <- read_csv(
-  "All_coordinates_rounded_and_filtered_only_Bmore 4.csv")
+library(jsonlite)
+#count_all_coords <- read_csv(
+#  "All_coordinates_rounded_and_filtered_only_Bmore 4.csv")
 ```
 
 #Log transform the data
@@ -77,7 +79,19 @@ write_csv(coords_for_geoJSON, "coordsforgeojson.csv")
 
 coords_for_geoJSON <- read_csv("C:/Users/Jesse/Programming/R/Map My Run Redone/Javascript Leaflet/coordsForGeoJSON.csv")
 
+#this creates the final txt file used for the coordinates in javascript
 write.table(coords_for_geoJSON,"coords.txt",row.names = FALSE, col.names= FALSE, dec=".",sep=";",eol="\\n")
+
+coords_for_geoJSON <- coords_for_geoJSON %>%
+  select(log_10_color)
+
+#if I make quotes false it aligns closer to the example of convert csv to array. 
+write.table(coords_for_geoJSON,"colors.txt", quote = FALSE, row.names = FALSE, col.names= FALSE, dec=".",sep=";",eol="\\n")
+
+#i am going to take the unrounded coordinates, only the latitude and longitude, no color, and plot it in leaflet to see how we should best normalize/ round the data. 
+count_all_unrounded_coordinates_lat_lon <- count_all_unrounded_coordinates %>%
+  select(lat, lon)
+
 
 ```
 
@@ -180,8 +194,25 @@ count_all_coords_rgb <- do.call(rbind.data.frame, (count_all_coords_rgb))
 write_csv(count_all_coords_rgb, "All_coords_colors_RGB.csv")
 
 #open
-count_all_coords_rgb <- read_csv("All_coords_colors_RGB.csv")
+count_all_coords_rgb <- read_csv("C:/Users/Jesse/Programming/R/Map My Run Redone/Data/All_coords_colors_RGB.csv")
 
+
+
+#tim salabim has his colors as decimals- he divided everything by 255. So let's try that
+count_all_coords_rgb <- count_all_coords_rgb %>%
+  mutate_all(funs(./255))
+
+#the final format of the rgb needs to be as such:
+#[{"r":0.26666666666666669,"g":0.00392156862745098,"b":0.32941176470588237},
+#{"r":0.9921568627450981,"g":0.9058823529411765,"b":0.1450980392156863}]
+
+#change colnames to r,g,b
+colnames(count_all_coords_rgb) <- c('r', 'g', 'b')
+
+#Making a csv of tthe colors in RGB notation for leaflet glify:
+write.table(count_all_coords_rgb,"colors_csv.txt", row.names = FALSE, col.names= TRUE, dec=".",sep=";",quote= FALSE, eol="\\n")
+
+jsonlite::toJSON(count_all_coords_rgb)
 ```
 Now we have our coordinates and color hopefully in the correct form. 
 

@@ -5,34 +5,18 @@ output: html_document
 
 #Introduction
 
-As an avid runner, I'm often on the lookout for new routes to try. It can get a 
-bit tiresome running the same loop every time I want some exercise. While many 
-articles abound online advising where one can run in any city, I figured I would
-try a more democratic approach. 
-
 I want a map of Baltimore that shows, for each street, how popular it is as a 
-running location. How do I determine how popular a street is for running? By 
-counting how many times people have run the street, of course! The end goal is a
-heat map that identifies popular areas and the best ways to connect them, 
-creating a super-run that hits all of the city's best jogs. I may filter for 
-trails that have been run >x number of times, to see what happens. 
+running location. I will use the nearly half million runs posted for Baltimore 
+city and county over the last ten years on MapMyRun.com. To access these runs, 
+we need to download each as a .gpx file, which would be inconvenient, to say 
+the least, to do by hand. Thus, we will use the Selenium WebDriver to automate
+the downloading of these files. 
 
-How could I possibly figure out where people are running? Why, by having them 
-tell me, of course! Runners are now tracking their runs, and some apps allow 
-them to share these runs. What app options exist?
+To access the runs posted for Baltimore, let's start at 
+[MapMyRun's site](http://mapmyrun.com/routes). In `Near`, we type 
+"Baltimore, MD, USA", we select `At Least`  0 miles, and put in `City`.
 
-Strava is interesting- but you can only see the runs your friends did. Runkeeper
-looks amazing- it plays music that matches its bpm to your steps per minute, 
-which is what Spotify used to do- but they don't track runners. There are also 
-apps that 3D print your runs, which is cool!
-
-MapMyRun (owned by Under Armour) seems like the best option. You can etc..
-
-Let's see how much information there is for Baltimore on MapMyRun. At 
-[MapMyRun's site](http://mapmyrun.com/routes), in `Near` put Baltimore, MD, USA,
-select `At Least`  0 miles, and put in `City`.
-
-![](search parameters initial.jpg)
+![](C:/Users/Jesse/Programming/R/Map My Run Redone/Images/search parameters initial.jpg)
 
 *** 
 
@@ -44,24 +28,20 @@ What does this search return?
 
 ***
 
-As we can see, there are 359,394 routes currently posted for Baltimore. The 
-table above displays the 19 most recent runs. Importantly, not only is MapMyRun 
-widely used but it is up to date. When I accessed the site on September 1st at 
-2:00PM, 24 runs had already been posted that day. 
+As we can see, at the time of data collection, there were 359,394 routes posted.
+The table above displays the 19 most recent runs. Importantly, not only is 
+MapMyRun widely used but it is up to date. When I accessed the site on September 
+1st at 2:00PM, 24 runs had already been posted that day. Furthermore, these runs 
+are not confined to the city and clearly extend into the county, which will give 
+our map a wider range. 
 
-In the `City` column, we see that many runs are outside of Baltimore's city 
-limits. I am not sure why this is occuring (maybe the runs go through the city 
-at some point?) but I think it is a good thing, because it will extend the range
-of our super-run. Let's use MapMyRun's map to visualize where these runs are in 
-relation to Baltimore city.
+Let's visualize the runs geographically.
 
 ***
 
 ![](initial map not satellite.jpg)
 
 ***
-
-We can see that the runs are close to the city, so let's leave it for now. 
 
 Just for fun, let's see what this looks like in satellite view. (This image was 
 accessed later, which explains why the runs changed)
@@ -75,9 +55,9 @@ accessed later, which explains why the runs changed)
 #Accessing the posted routes
 
 There are nearly 400,000 posted routes on MapMyRun in and around Baltimore city.
-But how can we turn a route into data? We need to use GPS coordinates. 
+But how can we turn routes into tidy tables? We need to use GPS coordinates. 
 
-GPS stands for Global Positioning System and consists of 27 satellits in medium 
+GPS stands for Global Positioning System and consists of 27 satellites in medium 
 Earth orbit owned by the United States government and operated by the Air Force. 
 Interestingly, since the US owns them, the US can selectively deny access to the 
 GPS system, which it did to the Indian government in 1999 during the Kargil War. 
@@ -86,7 +66,7 @@ interesting. The war, during which two Pakistani officials threatened to use
 nuclear weapons, may have been masterminded in secret by Pakistani General Perez 
 Musharraf, who subsequently deposed the prime minister Nawaz Sharif in a 
 military coup when Sharif attempted to court martial him after Pakistan lost 
-spectactularly.) This "right to refuse servie" prompted India to create their 
+spectactularly.) This "right to refuse service" prompted India to create their 
 own GPS system, called NAVIC. A number of non-American GPS systems now exist, 
 including the EU's Galileo and Russia's GLONASS (interesting name).
 
@@ -123,12 +103,11 @@ because of where it does go but where it doesn't. We will pinpoint the GPS
 
 For each run posted on MapMyRun, we want to download the route as a list of GPS 
 coordinates (i.e., latitudes and longitudes) denoting where the runner was 
-throughout. Certainly we can't get this information simply by looking at the 
-maps, so how can we do it?
+throughout. 
 
 This data is contained for each run as a `.gpx` file. GPX, which stands for GPS 
 EXchange format, is a specific type of markup language, written in an XML 
-schema. Now, what exactly is a markup language?
+schema. That begs the question, what exactly is a markup language?
 
 From [wikipedia](https://en.wikipedia.org/wiki/Markup_language):
 
@@ -247,7 +226,7 @@ remDr$screenshot(display = TRUE)
 #go to login thing
 login <- remDr$findElement(using = "xpath", "//header/div[2]/nav[2]/ul/li[1]/a")
 login$clickElement()
-#remDr$screenshot(display = TRUE)
+remDr$screenshot(display = TRUE)
 
 #Now we need to login
 
@@ -615,6 +594,7 @@ rounded_all_coordinates <-unique(rounded_all_coordinates)
 write_csv(rounded_all_coordinates , "All_coordinates_rounded_and_filtered.csv")
 
 #Count how many times each coordinate appears
+
 count_all_coordinates <- rounded_all_coordinates %>%
   group_by(V1, V2) %>%
   summarise(n=n())
@@ -637,6 +617,49 @@ write_csv(
 count_all_coordinates <- count_all_coordinates %>%
   filter(lon > -76.8 & lon < -76.3 & lat > 39.2 & lat < 39.7)
 
+#Save!
+write_csv(count_all_coordinates, 
+          "All_coordinates_rounded_and_filtered_only_Bmore.csv")
+
+#Here, I'm going to redo this analysis (the counting) with the unrounded data. 
+unrounded_all_coordinated <- fread("C:/Users/Jesse/Programming/R/Map My Run Redone/Data/all_coordinates_not_rounded_or_unfiltered 1.csv")
+
+count_all_unrounded_coordinates <- unrounded_all_coordinated %>%
+  group_by(V1, V2) %>%
+  summarise(n=n())
+
+#must ungroup after
+count_all_unrounded_coordinates <- count_all_unrounded_coordinates %>%
+  ungroup()
+
+colnames(count_all_unrounded_coordinates) <- c("lon", "lat", "n")
+
+
+#remove the ones outside of the city or county
+#39.2, -76.8 is near Columbia, which seems fair, and 39.7, -76.3 is nearly in 
+#Lancaster. I also had some reason for doing this but now can't remember, but 
+#these numbers seem fine.  
+count_all_unrounded_coordinates <- count_all_unrounded_coordinates %>%
+  filter(lon > -76.8 & lon < -76.3 & lat > 39.2 & lat < 39.7)
+
+#get the top counts:
+count_all_unrounded_coordinates %>%
+  arrange(desc(n)) %>%
+  head(50)
+#top is only 22, no bueno. But I am only doing this in order to map it and see what it looks like. 
+
+#if i don't round, the txt file has like 10 decimals, which is too much to handle. I think the gps files don't go past 5 decimal points anyway. 
+
+count_all_unrounded_coordinates_lat_lon <- count_all_unrounded_coordinates_lat_lon %>%
+  mutate_at(c("lat", "lon"), funs(round(., 5)))
+
+#Save!
+write_csv(
+  count_all_unrounded_coordinates, 
+  "count_all_unrounded_coordinates_not_including_non_Baltimore_address.csv")
+
+write.table(count_all_unrounded_coordinates_lat_lon,
+            "unrounded_coords.txt",row.names = FALSE, col.names= FALSE, dec=".",sep=";",eol="\\n")
 ```
 
 #Dumb map games
@@ -677,6 +700,11 @@ vacillating. Probably the simplest way is to ask- is there any latitude and
 longitude that is within .0005 of you that has been run more times than you... 
 
 Stamen has interesting maps
+
+#The rounding section
+```{r}
+
+```
 
 #Mapping
 For the mapping, www.r-graph-gallery.com/map/ explains the options well: 

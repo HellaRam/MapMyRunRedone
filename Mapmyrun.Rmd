@@ -132,7 +132,6 @@ looks, and plot it.
 #libraries
 library(tidyverse)
 library(RSelenium)
-library(leaflet)
 library(data.table) #to read in big excel files
 
 #library(XML)
@@ -571,15 +570,10 @@ write_csv(list_of_gpx_files_convered_to_coordinates,
 
 ```
 
-#Calculating the number of each
-I am rounding to 4 decimal points, so that there is a better chance two runners
-go over the same spot. 
+#Calculating the number of each coordinate
+#Here, I try rounding. I think this will be deleted.
 
 ```{r, eval=FALSE}
-#round off first_coord
-
-rounded_all_coordinates <- all_coordinates %>%
-  mutate_at(c("V1", "V2"), funs(round(., 4)))
 
 #However, this may lead to the same coordinate being counted twice for the same
 #runner-which is not fair. If a coordinate shows up, that should mean that their
@@ -589,9 +583,6 @@ rounded_all_coordinates <- all_coordinates %>%
 #same with the same runID will be deleted. 
 
 rounded_all_coordinates <-unique(rounded_all_coordinates)
-
-#save files
-write_csv(rounded_all_coordinates , "All_coordinates_rounded_and_filtered.csv")
 
 #Count how many times each coordinate appears
 
@@ -621,19 +612,140 @@ count_all_coordinates <- count_all_coordinates %>%
 write_csv(count_all_coordinates, 
           "All_coordinates_rounded_and_filtered_only_Bmore.csv")
 
-#Here, I'm going to redo this analysis (the counting) with the unrounded data. 
-unrounded_all_coordinated <- fread("C:/Users/Jesse/Programming/R/Map My Run Redone/Data/all_coordinates_not_rounded_or_unfiltered 1.csv")
+```
 
-count_all_unrounded_coordinates <- unrounded_all_coordinated %>%
+#Normalizing the data but not by rounding 
+
+For the lat and lon coords, they are all currently 7 sig figs. 
+Or at least 6, at any rate, 5 after the decimal. 
+
+We want to normalize these, because in those last 2 sig figs there is a great 
+deal of individual variation (i.e., if the person ran a foot north of the other 
+on the same street.)
+
+However, we can't simply round, because then we're getting, for example, 
+76.43200, and that 00 at the end may not represent an actual point people run, 
+it could be a home. 
+
+So, for each 5 sig fig combo of lat and lon, e.g., 76.434 and -32.345,
+using groupby, we'll say return the 7 decimal one, with these 5 decimal 
+starting, that occurs more than others. Then change all the other 7 decimals 
+with those 5 decimals starting to the most common 7 decimal for those 5 decimals. 
+
+If there are two with the same number? I'm thinking random? Unsure. 
+
+That means that you will still need to filter, so that the same coordinate is 
+not double counted for one runner, in case two of his coordinates end up the 
+same.
+
+We could try first with "rounding" to six sig figs, then try with 5. 
+
+```{r}
+#Here, I'm going to redo this analysis (the counting) with the unrounded data. 
+unrounded_all_coordinates <- read_csv(
+  "./Data/Working with the coord data/all_coordinates_not_rounded_or_unfiltered 1.csv")
+
+#we will round to 5 digits after decimal to simplify the analysis. 
+unrounded_all_coordinates <- unrounded_all_coordinates %>%
+  mutate_at(.vars = c("V1", "V2"), funs(round(., 5)))
+
+#now since we rounded we must do the unique, in case any doubled up on one run. 
+unrounded_all_coordinates <- unique(unrounded_all_coordinates)
+
+write_csv(
+  unrounded_all_coordinates, 
+  "./Data/Working with the coord data/all_coordinates_rounded_5 digs_and_filtered.csv")
+
+unrounded_all_coordinates <- read_csv(
+  "./Data/Working with the coord data/all_coordinates_rounded_5 digs_and_filtered.csv")
+
+#This has 30 million lines. 
+#can't simply summarise because we need to hold on to the .gpx file URL to later
+#filter out duplicated. 
+count_all_unrounded_coordinates <- unrounded_all_coordinates %>%
   group_by(V1, V2) %>%
-  summarise(n=n())
+  mutate(n=n())
 
 #must ungroup after
 count_all_unrounded_coordinates <- count_all_unrounded_coordinates %>%
   ungroup()
 
-colnames(count_all_unrounded_coordinates) <- c("lon", "lat", "n")
+colnames(count_all_unrounded_coordinates) <- c("lon", "lat", "RunID", "n")
 
+count_all_unrounded_coordinates <- count_all_unrounded_coordinates %>%
+  select(lat, lon, n, RunID)
+
+#write_csv(count_all_unrounded_coordinates,
+          "./Data/Working with the coord data/rounded_5_digs_filtered_then_counted_with_run_ID.txt")
+
+#count_all_unrounded_coordinates <- fread(
+  "./Data/Working with the coord data/rounded_5_digs_filtered_then_counted_with_run_ID.txt")
+
+#split into whole numbers and decimals, then into first 4 after decimal then
+#four after that
+count_all_unrounded_coordinates <- count_all_unrounded_coordinates %>%
+  separate(col = lon, sep = "\\.", 
+           into = c("lon_whole_nums", "lon_after_decimal"), convert = TRUE) %>%
+  separate(col = lon_after_decimal, sep = 4, 
+           into = c("lon_first_4_after_decimal", 
+                    "lon_more_than_4_after_decimal"), convert = TRUE) %>%
+  separate(col = lat, sep = "\\.", 
+           into = c("lat_whole_nums", "lat_after_decimal"), convert = TRUE) %>%
+  separate(col = lat_after_decimal, sep = 4, 
+           into = c("lat_first_4_after_decimal", 
+                    "lat_more_than_4_after_decimal"), convert = TRUE) %>%
+#all the zeros become NA;s, which we need to fix
+  mutate_all(funs(replace_na(.,0)))
+
+#Now unite the whole numbers and the 4 after the decimal for lon and lat. 
+count_all_unrounded_coordinates <- count_all_unrounded_coordinates %>%
+  unite("lon_first_4", c(lon_whole_nums, lon_first_4_after_decimal), 
+        sep = '.') %>%
+  unite("lat_first_4", c(lat_whole_nums, lat_first_4_after_decimal), 
+        sep = '.')
+
+#now I need to group by lat_first_4 and lon_first_4, and ask for each 
+#then pick the one with the highest n.
+
+#It appears that which.max, if there is the same value repeated,  
+count_all_unrounded_coordinates <- count_all_unrounded_coordinates %>%
+  group_by(lon_first_4, lat_first_4) %>%
+  mutate(lon_more_than_4_after_decimal = lon_more_than_4_after_decimal[which.max(n)]) %>%
+  mutate(lat_more_than_4_after_decimal = lat_more_than_4_after_decimal[which.max(n)])
+
+#now, we unite them back together. 
+count_all_unrounded_coordinates <- count_all_unrounded_coordinates %>%
+  unite("lon", c(lon_first_4, lon_more_than_4_after_decimal), 
+        sep = '') %>%
+  unite("lat", c(lat_first_4, lat_more_than_4_after_decimal), 
+        sep = '')
+
+#save at this point.
+write_csv(count_all_unrounded_coordinates,
+          "./Data/Working with the coord data/rounded_5_digs_filtered_counted_then_normalized_to_max_but_not_yet_filtered.txt")
+
+#now that I have changed values, I need to do the unique thing again, in case
+#2 values for one run got the same value. ALso let's remove n first. 
+count_all_unrounded_coordinates <- count_all_unrounded_coordinates %>%
+  select(-n)
+
+count_all_unrounded_coordinates <- unique(count_all_unrounded_coordinates)
+  
+#save at this point.
+write_csv(count_all_unrounded_coordinates,
+          "./Data/Working with the coord data/rounded_5_digs_filtered_counted_then_normalized_to_max_and_filtered.txt")
+
+count_all_unrounded_coordinates <- count_all_unrounded_coordinates %>%
+  select(-RunID) %>%
+  group_by(lat, lon) %>%
+  summarise(n=n()) %>%
+  ungroup()
+
+#save at this point.
+write_csv(count_all_unrounded_coordinates,
+          "./Data/Working with the coord data/rounded_5_digs_filtered_counted_then_normalized_to_best_5_dig_and_filtered_then_counted_again.csv")
+
+count_all_unrounded_coordinates <- read_csv("./Data/Working with the coord data/5 digs NORMALIZATION process/rounded_5_digs_filtered_counted_then_normalized_to_best_5_dig_and_filtered_then_counted_again.csv")
 
 #remove the ones outside of the city or county
 #39.2, -76.8 is near Columbia, which seems fair, and 39.7, -76.3 is nearly in 
@@ -642,24 +754,16 @@ colnames(count_all_unrounded_coordinates) <- c("lon", "lat", "n")
 count_all_unrounded_coordinates <- count_all_unrounded_coordinates %>%
   filter(lon > -76.8 & lon < -76.3 & lat > 39.2 & lat < 39.7)
 
+#save at this point.
+write_csv(count_all_unrounded_coordinates,
+          "./Data/Working with the coord data/rounded_5_digs_filtered_counted_then_normalized_to_best_5_dig_and_filtered_then_counted_again_then_filtered_for_Bmore_only")
+
 #get the top counts:
 count_all_unrounded_coordinates %>%
   arrange(desc(n)) %>%
   head(50)
-#top is only 22, no bueno. But I am only doing this in order to map it and see what it looks like. 
+#top is 592 bitch.
 
-#if i don't round, the txt file has like 10 decimals, which is too much to handle. I think the gps files don't go past 5 decimal points anyway. 
-
-count_all_unrounded_coordinates_lat_lon <- count_all_unrounded_coordinates_lat_lon %>%
-  mutate_at(c("lat", "lon"), funs(round(., 5)))
-
-#Save!
-write_csv(
-  count_all_unrounded_coordinates, 
-  "count_all_unrounded_coordinates_not_including_non_Baltimore_address.csv")
-
-write.table(count_all_unrounded_coordinates_lat_lon,
-            "unrounded_coords.txt",row.names = FALSE, col.names= FALSE, dec=".",sep=";",eol="\\n")
 ```
 
 #Dumb map games

@@ -13,16 +13,18 @@ I need to use a chloropeth.
 library(tidyverse)
 
 library(leaflet)
-library(jsonlite)
-#count_all_coords <- read_csv(
-#  "All_coordinates_rounded_and_filtered_only_Bmore 4.csv")
+
+
 ```
 
 #Log transform the data
 
 ```{r}
 
-#Look at both Log2 and log10. 
+count_all_unrounded_coordinates <- read_csv(
+  "./Data/Working with the coord data/5 digs NORMALIZATION process/rounded_5_digs_filtered_counted_then_normalized_to_best_5_dig_and_filtered_then_counted_again.csv")
+
+#Look at both Log2 and log10. Log 10 works best. 
 count_all_coords <- count_all_coords %>%
   mutate(Log_10 = log10(count_all_coords$n)) #%>%
   #mutate(Log_2 = log(count_all_coords$n, base = 2))
@@ -59,7 +61,7 @@ It seems that the Log_10 data has the most normalized distribution.
 ##Determining a color scheme. 
 ```{r}
 #now I need to turn continuous data into a color palette. 
-
+#function from R for leaflet package. 
 log_color_palette <- colorNumeric("magma", domain = count_all_coords$Log_10)
 
 count_all_coords <- count_all_coords %>%
@@ -95,89 +97,48 @@ count_all_unrounded_coordinates_lat_lon <- count_all_unrounded_coordinates %>%
 
 ```
 
-#Now I want to add those colors to the map
+#Retrying with the normalized 5 digit data
 ```{r}
-#practice with leaflet
-options(viewer = NULL)
+#going to try with Bmore filtered data first. 
+count_all_unrounded_coordinates <- read_csv(
+  "./Data/Working with the coord data/3 digs rounding process/best_4_dig_for_each_3_dig_chosen_counted_then_filtered.csv")
 
-#it seems canvas could be something?
-m=leaflet(options = leafletOptions(preferCanvas = TRUE)) %>%
-  addProviderTiles(providers$Esri.WorldGrayCanvas, options = providerTileOptions(
-  updateWhenZooming = FALSE,      # map won't update tiles until zoom is done
-  updateWhenIdle = TRUE           # map won't load new tiles when panning
-)) %>%
-  addCircleMarkers(lng = count_all_coords$lon, lat = count_all_coords$lat, 
-              color = count_all_coords$log_10_color)
-
-## this is the old addTiles I used. 
-#addTiles(m, urlTemplate = "http://{s}.tiles.wmflabs.org/bw-mapnik/{z}/{x}/{y}.png")
-
-#addPolygons doen't work, they're too big. 
-m
+#Look at both Log2 and log10. Log 10 works best. 
+count_all_unrounded_coordinates <- count_all_unrounded_coordinates %>%
+  mutate(Log_10 = log10(count_all_unrounded_coordinates$n)) #%>%
+  #mutate(Log_2 = log(count_all_coords$n, base = 2))
 
 ```
 
-#Problems: Even though the map is loaded, it cannot show.
-Putting 1 million circleMarkers on a Leaflet map is crashing R. What have I done
-to try and fix this?
-1. Use R Studio Cloud. This also crashed. 
-2. Now trying a package called glify. This is an R "port" of leaflet glify.
-It is ["for fast web gl rendering of features on leaflet maps"](https://github.com/tim-salabim/leaflet.glify#leafletglify).
+```{r}
+#now I need to turn continuous data into a color palette. 
+#function from R for leaflet package. 
+log_color_palette <- colorNumeric("magma", domain = count_all_unrounded_coordinates$Log_10)
 
-WebGL is a [Javascript API for rendering interactive 3D and 3D graphics within
-any compatible web browser without the use of plug-ins.](https://developer.mozilla.org/en-US/docs/Web/API/WebGL_API)
+count_all_unrounded_coordinates <- count_all_unrounded_coordinates %>%
+  mutate(log_10_color = log_color_palette(Log_10))
 
-In the `addGlifyPoints` function, it appears we have three options to worry
-about: map, data and color. Map is easy, but how to get data and color in a 
-workable format?
+count_all_unrounded_coordinates <- count_all_unrounded_coordinates %>%
+  select(lat, lon, log_10_color)
 
-Data: In the [example](https://github.com/tim-salabim/leaflet.glify), a data 
-frame is converted into a `sf` object using the `st_as_sf` function from the 
-`sf` package. 
+coords_for_geoJSON <- count_all_unrounded_coordinates %>%
+  select(lat, lon)
 
-What are simple features? Simple features [describes how objects can be 
-represented in computers, with emphasis on the spatial geometry of these 
-objects.](https://r-spatial.github.io/sf/articles/sf1.html) This standard is 
-used in GeoJSON and commercial GIS. There are 7 most common simple feature
-types (these are the ones used for GeoJSON). The type we will be using is a 
-multipoint. (I think). We also need a "coordinate reference system" or CRS. The
-"standard" one? is 4326
+#this creates the final txt file used for the coordinates in javascript
+write.table(coords_for_geoJSON,
+            "./Data/Working with the coord data/3 digs rounding process/best_4_dig_for_each_3_dig_chosen_counted_then_filtered.txt",
+            row.names = FALSE, col.names= FALSE, dec=".",sep=";",eol="\\n")
 
+count_all_coords_rgb <- count_all_unrounded_coordinates %>%
+  select(log_10_color)
 
+#if I make quotes false it aligns closer to the example of convert csv to array. 
+write.table(coords_for_geoJSON,"colors.txt", quote = FALSE, row.names = FALSE, col.names= FALSE, dec=".",sep=";",eol="\\n")
+
+```
 
 ```{r}
-library(leaflet.glify)
 library(sf)
-library(mapview)
-```
-
-```{r}
-#Turn count_all_coords into simple feature (sf)
-#this isn't working, maybe because I need to make the shape file (sf) only
-#a shape file. 
-#in the example, they have df1 with only three variables. Their df1 is also
-#a dataframe, so I made mine that. 
-
-count_all_coords_sf <- count_all_coords %>%
-  mutate(id= row_number()) %>%
-  select(id, lat, lon) %>%
-  as.data.frame()
-
-count_all_coords_sf <- st_as_sf(count_all_coords_sf, coords = c("lat", "lon"), 
-                             crs = 4326)
-
-#now, count_all_coords_sf is only a sf and a dataframe, which is what pts is in
-#the example. 
-
-#glify guy sets viewer as null to view in browser
-options(viewer = NULL)
-
-#save shape file!
-
-write_csv(count_all_coords_sf, "All_coords_values_shape_file.csv")
-
-count_all_coords_sf <- read_csv("All_coords_values_shape_file.csv")
-
 ```
 
 #Change hex color list to rgb three column matrix.
@@ -211,58 +172,4 @@ colnames(count_all_coords_rgb) <- c('r', 'g', 'b')
 
 #Making a csv of tthe colors in RGB notation for leaflet glify:
 write.table(count_all_coords_rgb,"colors_csv.txt", row.names = FALSE, col.names= TRUE, dec=".",sep=";",quote= FALSE, eol="\\n")
-
-jsonlite::toJSON(count_all_coords_rgb)
 ```
-Now we have our coordinates and color hopefully in the correct form. 
-
-```{r}
-n <- leaflet() %>%
-  addTiles(urlTemplate = 
-             "http://{s}.tiles.wmflabs.org/bw-mapnik/{z}/{x}/{y}.png") %>%
-  addGlifyPoints(data = count_all_coords_sf[1:100,], 
-                 color = count_all_coords_rgb[1:100,],
-                 group = "count_all_coords_sf") %>%
-  addMouseCoordinates() %>%
-  addLayersControl(overlayGroups = "count_all_coords_sf")
-
-#try with his example 
-
-system.time({
-  m = leaflet() %>%
-    addProviderTiles(provider = providers$CartoDB.DarkMatter) %>%
-    addGlifyPoints(data = pts, group = "pts") %>%
-    addMouseCoordinates() %>%
-    setView(lng = 10.5, lat = 49.5, zoom = 6) %>% 
-    addLayersControl(overlayGroups = "pts")
-})
-
-m
-```
-
-#OK none of that worked. Now I will try 
-[Marker Clusters](https://rstudio.github.io/leaflet/markers.html) 
-
-
-The addTiles function is part of addControl, which is about adding graphic 
-elements and layers. You can addPopups, addMarkers, addCircles, addPolylines, 
-addRectangles, addPolygons.
-
-What is geoJSON? 
-It is a 
-["format 4 encoding variety of geographic data structures"](http://geojson.org/)
-
-What is JSON? It is a 
-[lightweight data-interchange format](https://www.json.org/) It has objects, 
-which are name/value pairs, and it has an ordered list of values. 
-
-JSON stands for 
-[Java Script Object Notation](https://www.w3schools.com/js/js_json_intro.asp). 
-Really the reason, when you exchange data, it has to be in text. JSON is text. 
-We can convert any javasrcipt object into JSON, and vice versa. 
-
-A Javascript object is one of the seven basic data types. Unlike the other data
-types (numbers, strings, boolean, null, undefined (except for symbol)), which 
-are primitive, meaning they can only hold one type of thing, the object can
-contain complex data collections.
-

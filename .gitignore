@@ -4,5 +4,8 @@ Data
 Images
 R
 ~$MapMyRun CharmCityJS.pptx
-Javascript leaflet/mwe
-Javascript leaflet/node_modules
+docs/node_modules/
+docs/mwe
+docs/upload_text_data/RGB_colors_for_map_magma.js
+docs/upload_text_data/RGB_colors_for_map_viridis.js
+

@@ -135,6 +135,7 @@ library(RSelenium)
 library(data.table) #to read in big excel files
 library(beepr)
 library(leaflet)
+library(RColorBrewer)
 memory.limit(size = 32000000000)
 
 #library(XML)
@@ -600,132 +601,6 @@ same.
 
 We could try first with "rounding" to six sig figs, then try with 5. 
 
-```{r}
-#Here, I'm going to redo this analysis (the counting) with the unrounded data. 
-unrounded_all_coordinates <- read_csv(
-  "./Data/Working with the coord data/all_coordinates_not_rounded_or_unfiltered 1.csv")
-
-#we will round to 5 digits after decimal to simplify the analysis. 
-unrounded_all_coordinates <- unrounded_all_coordinates %>%
-  mutate_at(.vars = c("V1", "V2"), funs(round(., 5)))
-
-#now since we rounded we must do the unique, in case any doubled up on one run. 
-unrounded_all_coordinates <- unique(unrounded_all_coordinates)
-
-write_csv(
-  unrounded_all_coordinates, 
-  "./Data/Working with the coord data/all_coordinates_rounded_5 digs_and_filtered.csv")
-
-unrounded_all_coordinates <- read_csv(
-  "./Data/Working with the coord data/all_coordinates_rounded_5 digs_and_filtered.csv")
-
-#This has 30 million lines. 
-#can't simply summarise because we need to hold on to the .gpx file URL to later
-#filter out duplicated. 
-count_all_unrounded_coordinates <- unrounded_all_coordinates %>%
-  group_by(V1, V2) %>%
-  mutate(n=n())
-
-#must ungroup after
-count_all_unrounded_coordinates <- count_all_unrounded_coordinates %>%
-  ungroup()
-
-colnames(count_all_unrounded_coordinates) <- c("lon", "lat", "RunID", "n")
-
-count_all_unrounded_coordinates <- count_all_unrounded_coordinates %>%
-  select(lat, lon, n, RunID)
-
-#write_csv(count_all_unrounded_coordinates,
-          "./Data/Working with the coord data/rounded_5_digs_filtered_then_counted_with_run_ID.txt")
-
-#count_all_unrounded_coordinates <- fread(
-  "./Data/Working with the coord data/rounded_5_digs_filtered_then_counted_with_run_ID.txt")
-
-#split into whole numbers and decimals, then into first 4 after decimal then
-#four after that
-count_all_unrounded_coordinates <- count_all_unrounded_coordinates %>%
-  separate(col = lon, sep = "\\.", 
-           into = c("lon_whole_nums", "lon_after_decimal"), convert = TRUE) %>%
-  separate(col = lon_after_decimal, sep = 4, 
-           into = c("lon_first_4_after_decimal", 
-                    "lon_more_than_4_after_decimal"), convert = TRUE) %>%
-  separate(col = lat, sep = "\\.", 
-           into = c("lat_whole_nums", "lat_after_decimal"), convert = TRUE) %>%
-  separate(col = lat_after_decimal, sep = 4, 
-           into = c("lat_first_4_after_decimal", 
-                    "lat_more_than_4_after_decimal"), convert = TRUE) %>%
-#all the zeros become NA;s, which we need to fix
-  mutate_all(funs(replace_na(.,0)))
-
-#Now unite the whole numbers and the 4 after the decimal for lon and lat. 
-count_all_unrounded_coordinates <- count_all_unrounded_coordinates %>%
-  unite("lon_first_4", c(lon_whole_nums, lon_first_4_after_decimal), 
-        sep = '.') %>%
-  unite("lat_first_4", c(lat_whole_nums, lat_first_4_after_decimal), 
-        sep = '.')
-
-#now I need to group by lat_first_4 and lon_first_4, and ask for each 
-#then pick the one with the highest n.
-
-#It appears that which.max, if there is the same value repeated,  
-count_all_unrounded_coordinates <- count_all_unrounded_coordinates %>%
-  group_by(lon_first_4, lat_first_4) %>%
-  mutate(lon_more_than_4_after_decimal = lon_more_than_4_after_decimal[which.max(n)]) %>%
-  mutate(lat_more_than_4_after_decimal = lat_more_than_4_after_decimal[which.max(n)])
-
-#now, we unite them back together. 
-count_all_unrounded_coordinates <- count_all_unrounded_coordinates %>%
-  unite("lon", c(lon_first_4, lon_more_than_4_after_decimal), 
-        sep = '') %>%
-  unite("lat", c(lat_first_4, lat_more_than_4_after_decimal), 
-        sep = '')
-
-#save at this point.
-write_csv(count_all_unrounded_coordinates,
-          "./Data/Working with the coord data/rounded_5_digs_filtered_counted_then_normalized_to_max_but_not_yet_filtered.txt")
-
-#now that I have changed values, I need to do the unique thing again, in case
-#2 values for one run got the same value. ALso let's remove n first. 
-count_all_unrounded_coordinates <- count_all_unrounded_coordinates %>%
-  select(-n)
-
-count_all_unrounded_coordinates <- unique(count_all_unrounded_coordinates)
-  
-#save at this point.
-write_csv(count_all_unrounded_coordinates,
-          "./Data/Working with the coord data/rounded_5_digs_filtered_counted_then_normalized_to_max_and_filtered.txt")
-
-count_all_unrounded_coordinates <- count_all_unrounded_coordinates %>%
-  select(-RunID) %>%
-  group_by(lat, lon) %>%
-  summarise(n=n()) %>%
-  ungroup()
-
-#save at this point.
-write_csv(count_all_unrounded_coordinates,
-          "./Data/Working with the coord data/rounded_5_digs_filtered_counted_then_normalized_to_best_5_dig_and_filtered_then_counted_again.csv")
-
-count_all_unrounded_coordinates <- read_csv("./Data/Working with the coord data/5 digs NORMALIZATION process/rounded_5_digs_filtered_counted_then_normalized_to_best_5_dig_and_filtered_then_counted_again.csv")
-
-#remove the ones outside of the city or county
-#39.2, -76.8 is near Columbia, which seems fair, and 39.7, -76.3 is nearly in 
-#Lancaster. I also had some reason for doing this but now can't remember, but 
-#these numbers seem fine.  
-count_all_unrounded_coordinates <- count_all_unrounded_coordinates %>%
-  filter(lon > -76.8 & lon < -76.3 & lat > 39.2 & lat < 39.7)
-
-#save at this point.
-write_csv(count_all_unrounded_coordinates,
-          "./Data/Working with the coord data/rounded_5_digs_filtered_counted_then_normalized_to_best_5_dig_and_filtered_then_counted_again_then_filtered_for_Bmore_only")
-
-#get the top counts:
-count_all_unrounded_coordinates %>%
-  arrange(desc(n)) %>%
-  head(50)
-#top is 592 bitch.
-
-```
-
 Looking at the map it is clear that, for three after the decimal, I should 
 choose the best fourth and fifth. 
 
@@ -738,7 +613,7 @@ that gets chosen is very arbitrary. I want to use actual numbers of times
 people run the area to choose which 3 to pick, which is more likely to be 
 informative if rounded to the fourth. 
 
-```{r}
+```{r} 
 #Here, I'm going to redo this analysis (the counting) with the unrounded data. 
 unrounded_all_coordinates <- fread(
   "./Data/Working with the coord data/all_coordinates_not_rounded_or_unfiltered 1.csv")
@@ -834,45 +709,46 @@ unrounded_all_coordinates <- unique(unrounded_all_coordinates)
 write_csv(unrounded_all_coordinates,
 "best_jesse.csv")
 
+unrounded_all_coordinates <- fread("./Data/Working with the coord data/3 digs rounding process/best_jesse.csv")
+
+unrounded_all_coordinates <- unrounded_all_coordinates %>%
+  group_by(lat, lon) %>%
+  mutate(n=n()) %>%
+  ungroup()
+
+#new idea. mutate new column with everyone rounded to 3 digs. 
+unrounded_all_coordinates <- unrounded_all_coordinates %>%
+  mutate(lat_round_3 = round(lat, 3),
+         lon_round_3 = round(lon, 3))
+
+#if a value in lat_round_3 = another lat_round_3 and lon_round_3 = another
+#lon_round_3 and the n of the other is bigger than the n of the current, replace
+#that with this. 
+
+unrounded_all_coordinates <- unrounded_all_coordinates %>%
+  group_by(lat_round_3, lon_round_3) %>%
+  mutate(lat = lat[which.max(n)],
+         lon = lon[which.max(n)])
+
+#now once again need to get to unique. 
+unrounded_all_coordinates <- unrounded_all_coordinates %>%
+  ungroup() %>%
+  select(-c(n, lat_round_3, lon_round_3))
+
+unrounded_all_coordinates <- unique(unrounded_all_coordinates)
+  
 unrounded_all_coordinates <- unrounded_all_coordinates %>%
   group_by(lat, lon) %>%
   summarise(n=n()) %>%
   ungroup()
 
-#remove the ones outside of the city or county
-#39.2, -76.8 is near Columbia, which seems fair, and 39.7, -76.3 is nearly in 
-#Lancaster. I also had some reason for doing this but now can't remember, but 
-#these numbers seem fine.  
 unrounded_all_coordinates <- unrounded_all_coordinates %>%
-  filter(lon > -76.8 & lon < -76.3 & lat > 39.2 & lat < 39.7)
+  filter(lon>-77 & lat > 39.1 & lon < -76.1 & lat < 39.72)
 
-write_csv(unrounded_all_coordinates,
-          "./Data/Working with the coord data/3 digs rounding process/3_digs_filtered_redone_as_numeric_final.csv")
-  
+write_csv(unrounded_all_coordinates, "./Data/Working with the coord data/3 digs rounding process/3 dgis/3 digits rounded twice.csv")
+
 #So this new analysis has made sure that things were numeric at every step-
 #very important. 
-
-prac <- unrounded_all_coordinates[1:500,]
-
-prac2 <- prac %>%
-  mutate(lat2 = pmap_chr(list(x = lat, y = lon, v = n),
-                                 function(x, y, v)
-                                 ifelse(any(lat_Lower_Range < x & 
-                                              lat_Upper_Range > x & 
-                                              lon_Lower_Range < y & 
-                                              lon_Upper_Range > y & 
-                                              v > n) == TRUE,
-                                 paste(lat[which(lat_Lower_Range < x & 
-                                              lat_Upper_Range > x & 
-                                              lon_Lower_Range < y & 
-                                              lon_Upper_Range > y & 
-                                              v > n)], collapse = ", "),
-                                 lat)))
-unrounded_all_coordinates <- unrounded_all_coordinates %>%
-  mutate(lat_Lower_Range = lat - 0.0001,
-         lat_Upper_Range = lat + 0.0001,
-         lon_Lower_Range = lon - 0.0001,
-         lon_Upper_Range = lon + 0.0001)
 
 #get the top counts:
 unrounded_all_coordinates %>%
@@ -891,13 +767,11 @@ c) how the fuck do i fix it.
 It seems to me that the best way to do it is to say: If we round to 3 after 
 decimal and we are the same, then take the one that happens more. 
 #Leaflet section
-
-
 ##Log transform the data
 
 ```{r}
 count_all_coords <- read_csv(
-  "./Data/Working with the coord data/3 digs rounding process/3_digs_filtered_redone_as_numeric_final.csv")
+  "./Data/Working with the coord data/3 dgis/3 digits rounded twice.csv")
 
 #Look at both Log2 and log10. Log 10 works best. 
 count_all_coords <- count_all_coords %>%
@@ -937,97 +811,24 @@ It seems that the Log_10 data has the most normalized distribution.
 ```{r}
 #now I need to turn continuous data into a color palette. 
 #function from R for leaflet package. 
-log_color_palette <- colorNumeric("magma", domain = count_all_coords$Log_10)
+colors <- count_all_coords %>%
+  select(Log_10)
 
-count_all_coords <- count_all_coords %>%
-  mutate(log_10_color = log_color_palette(Log_10))
+#make a function
+log_color_palette <- colorNumeric("Reds", domain = colors$Log_10)
 
-count_all_coords <- count_all_coords %>%
-  select(lat, lon, log_10_color)
-
-write_csv(just_coords_and_colors_for_geoJSON, "coordsAndColorsForGeoJSON.csv")
-
-coords_for_geoJSON <- read_csv("coordsandColorsforGeoJSON.csv")
-
-count_all_coords <- count_all_coords %>%
-  select(lat, lon)
-
-#this creates the final txt file used for the coordinates in javascript
-write.table(count_all_coords,"coords.txt",row.names = FALSE, col.names= FALSE, dec=".",sep=";",eol="\\n")
-
-coords_for_geoJSON <- coords_for_geoJSON %>%
-  select(log_10_color)
-
-#if I make quotes false it aligns closer to the example of convert csv to array. 
-write.table(coords_for_geoJSON,"colors.txt", quote = FALSE, row.names = FALSE, col.names= FALSE, dec=".",sep=";",eol="\\n")
-
-#i am going to take the unrounded coordinates, only the latitude and longitude, no color, and plot it in leaflet to see how we should best normalize/ round the data. 
-count_all_unrounded_coordinates_lat_lon <- count_all_unrounded_coordinates %>%
-  select(lat, lon)
-
-
-```
-
-##Retrying with the normalized 5 digit data
-```{r}
-#going to try with Bmore filtered data first. 
-count_all_unrounded_coordinates <- read_csv(
-  "./Data/Working with the coord data/3 digs rounding process/best_4_dig_for_each_3_dig_chosen_counted_then_filtered.csv")
-
-#Look at both Log2 and log10. Log 10 works best. 
-count_all_unrounded_coordinates <- count_all_unrounded_coordinates %>%
-  mutate(Log_10 = log10(count_all_unrounded_coordinates$n)) #%>%
-  #mutate(Log_2 = log(count_all_coords$n, base = 2))
-
-```
-
-```{r}
-#now I need to turn continuous data into a color palette. 
-#function from R for leaflet package. 
-log_color_palette <- colorNumeric("magma", domain = count_all_unrounded_coordinates$Log_10)
-
-count_all_unrounded_coordinates <- count_all_unrounded_coordinates %>%
-  mutate(log_10_color = log_color_palette(Log_10))
-
-count_all_unrounded_coordinates <- count_all_unrounded_coordinates %>%
-  select(lat, lon, log_10_color)
-
-coords_for_geoJSON <- count_all_unrounded_coordinates %>%
-  select(lat, lon)
-
-#this creates the final txt file used for the coordinates in javascript
-write.table(coords_for_geoJSON,
-            "./Data/Working with the coord data/3 digs rounding process/best_4_dig_for_each_3_dig_chosen_counted_then_filtered.txt",
-            row.names = FALSE, col.names= FALSE, dec=".",sep=";",eol="\\n")
-
-count_all_coords_rgb <- count_all_unrounded_coordinates %>%
-  select(log_10_color)
-
-#if I make quotes false it aligns closer to the example of convert csv to array. 
-write.table(coords_for_geoJSON,"colors.txt", quote = FALSE, row.names = FALSE, col.names= FALSE, dec=".",sep=";",eol="\\n")
-
-```
+colors <- colors %>%
+  mutate(Log_10 = log_color_palette(Log_10))
 
 ##Change hex color list to rgb three column matrix.
-```{r}
-#I can use the col2rgb function. 
-
 #each map iteration, with the t to transpose, creates a 1 * 3 matrix.
-count_all_coords_rgb <- map(.x = count_all_coords$log_10_color, 
+colors <- map(.x = colors$Log_10, 
                             .f = ~ t(col2rgb(.))) 
 
-count_all_coords_rgb <- do.call(rbind.data.frame, (count_all_coords_rgb))
-
-#save
-write_csv(count_all_coords_rgb, "All_coords_colors_RGB.csv")
-
-#open
-count_all_coords_rgb <- read_csv("C:/Users/Jesse/Programming/R/Map My Run Redone/Data/All_coords_colors_RGB.csv")
-
-
+colors <- do.call(rbind.data.frame, (colors))
 
 #tim salabim has his colors as decimals- he divided everything by 255. So let's try that
-count_all_coords_rgb <- count_all_coords_rgb %>%
+colors <- colors %>%
   mutate_all(funs(./255))
 
 #the final format of the rgb needs to be as such:
@@ -1035,8 +836,31 @@ count_all_coords_rgb <- count_all_coords_rgb %>%
 #{"r":0.9921568627450981,"g":0.9058823529411765,"b":0.1450980392156863}]
 
 #change colnames to r,g,b
-colnames(count_all_coords_rgb) <- c('r', 'g', 'b')
+colnames(colors) <- c('r', 'g', 'b')
 
 #Making a csv of tthe colors in RGB notation for leaflet glify:
-write.table(count_all_coords_rgb,"colors_csv.txt", row.names = FALSE, col.names= TRUE, dec=".",sep=";",quote= FALSE, eol="\\n")
+write.table(colors,"colors_3_dig_rounded_viridis_unfiltered.txt", row.names = FALSE, col.names= TRUE, dec=".",sep=";",quote= FALSE, eol="\\n")
+
 ```
+#coords section
+```{r}
+coords <- count_all_coords %>%
+  select(lat, lon)
+
+#this creates the final txt file used for the coordinates in javascript
+write.table(coords,"coords_3_digs_as_numeric_filtered_for_Bmore.txt",row.names = FALSE, col.names= FALSE, dec=".",sep=";",eol="\\n")
+```
+
+Now ya boy is trying to do two things: Create a legend and make the map tell you 
+how many times someone ran something when it is clicked. 
+
+```{r}
+#bring the regular color values (hexadecimal) and the regular numers (not log)
+#into leaflet. 
+number <- count_all_coords %>%
+  select(n)
+
+write.table(number,"raw_number_of_each_coord.txt",row.names = FALSE, col.names= FALSE, dec=".",sep=";",eol=";")
+
+```
+

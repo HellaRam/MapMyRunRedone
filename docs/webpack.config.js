@@ -1,9 +1,10 @@
-// webpack.config.js
+const path = require('path');
+
 module.exports = {
-  mode: 'development',
-  entry: './js/csvtoarray.js',
+  mode: 'production',
+  entry: './index.js',
   output: {
-    filename: 'main.js',
-    publicPath: 'dist'
-  },
- }
+    filename: 'bundle.js',
+    path: path.resolve(__dirname, 'dist')
+  }
+};

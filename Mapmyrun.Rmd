@@ -128,8 +128,6 @@ looks, and plot it.
 #Libraries for project
 
 ```{r, message=FALSE}
-
-#libraries
 library(tidyverse)
 library(RSelenium)
 library(data.table) #to read in big excel files
@@ -137,6 +135,7 @@ library(beepr)
 library(leaflet)
 library(RColorBrewer)
 memory.limit(size = 32000000000)
+library(kableExtra)
 
 #library(XML)
 library(rgdal) #this is used for readOGR
@@ -149,9 +148,9 @@ library(ggmap)
 The function `readOGR` from the `rgdal` package turns it into a S4 Object of 
 class Spacial Lines Data Frame.  
 
-```{r}
+```{r} 
 #Using the readOGR function from rgdal package.
-first_try <- readOGR(dsn = "route842022275.gpx", "tracks")
+first_try <- readOGR(dsn = "C:/Users/Jesse/container-data/route1333544488.gpx", "tracks")
 
 class(first_try)
 ```
@@ -173,13 +172,14 @@ We use the `coordinates` function to turn our S4 Object into a normal data
 frame.
 
 ```{r}
-first_coord <- coordinates(first_try)[[1]][[1]] %>%
-  as.tibble()
-
-#set colnames
-colnames(first_coord) <- c("long", "lat")
-
-head(first_coord)
+wasp_coords <- coordinates(first_try)[[1]][[1]] %>%
+ as.tibble()
+#Set names of column to longitude and latitude
+colnames(wasp_coords) <- c("Longitude", "Latitude")
+#Show the header and first 5 rows of the dataset
+head(wasp_coords) %>%
+  kable() %>%
+  kable_styling(full_width = FALSE)
 ```
 
 #Scraping .gpx files for all runs
@@ -218,7 +218,7 @@ To download routes in MapMyRun, it is necessary to first login to your account.
 So we start by accessing the MapMyRun homepage. 
 
 ##How to Do it for One .gpx run
-```{r}
+```{r} 
 #go to mapmyrun home page
 remDr$navigate("https://www.mapmyrun.com")
 
@@ -234,17 +234,18 @@ remDr$screenshot(display = TRUE)
 #Now we need to login
 
 #input email
-login <- remDr$findElement(using = 'name', value = "email")
+login <- remDr$findElement(using = 'id', value = "email")
 login$sendKeysToElement(list("kerr.jesse@gmail.com"))
 remDr$screenshot(display = TRUE)
 
 #input password
-login <- remDr$findElement(using = 'name', value = "password")
+login <- remDr$findElement(using = 'id', value = "password")
 login$sendKeysToElement(list("NewJustforMap"))
 remDr$screenshot(display = TRUE)
 
 #click LogIn
-login <- remDr$findElement(using = 'css', "button")
+login <- remDr$findElement(using = 'css', "[class='success-2jB0o button-2M08K medium-3PyzS button-2UrgI button-3ptrG']")
+
 login$clickElement()
 remDr$screenshot(display = TRUE)
 ```
@@ -306,23 +307,33 @@ city$getElementAttribute("name")
 
 #below is the code for "tab", to fill in the Baltimore, MD, USA thing.
 #for some reason sometimes this requires being done twice.
-city$sendKeysToElement(list("Baltimore, MD, USA", "\uE004"))
+city$sendKeysToElement(list("Baltimore, MD 21231"))
 remDr$screenshot(display = TRUE)
 
+city$sendKeysToElement(list("\uE004"))
+
+distance <- remDr$findElement(using = "name", value = "distanceMinimum")
+
+distance$sendKeysToElement(list(key = "backspace"))
+
+distance$sendKeysToElement(list("0"))
+
 #Now we need to click the search button
-webElem <- remDr$findElement("xpath", 
-                             "//div[@class = 
-                             'submitButtonDesktop-36_Oa']/button[@class = 
-                             'primary-xvWQU button-2M08K medium-3PyzS']")
+webElem <- remDr$findElement(using = "css", "[class = 'primary-xvWQU button-2M08K medium-3PyzS']")
 
 webElem$clickElement()
 remDr$screenshot(display = TRUE)
 
 #want to scroll to the bottom
 webElem <- remDr$findElement("css", "body")
-webElem$sendKeysToElement(list(key = "end"))
+webElem$sendKeysToElement(list(key = "down_arrow"))
 remDr$screenshot(display = TRUE)
 
+remDr$setWindowSize(width = 1000, height= 1200)
+
+heading <- remDr$findElement(using = "class", value ="routeCountTotal-2mg7f")
+
+remDr$mouseMoveToLocation(webElement = heading)
 ```
 
 We have finally managed to load the site. Now I want to find all of the elements 
@@ -449,7 +460,7 @@ only putting files in a folder.
 remDr$navigate("https://www.mapmyrun.com/routes/view/516461260")
 remDr$screenshot(display = TRUE)
 
-webeL <- remDr$findElement(using = "xpath", "//a[@id = 'export_this_route']")
+webeL <- remDr$findElement(using = "id", value = "export_this_route")
 webeL$clickElement()
 remDr$screenshot(display = TRUE)
 
@@ -494,9 +505,8 @@ for (i in 1:20000){
 # the part of the html that changes when that button is clicked. This tells 
 # Selenium to wait until this is findable to try to click the next button.
   webEl2 <- remDr$findElement(
-    using = "xpath", 
-    "//form[@id= 'export_route_gpx_form']/p[2]/input[@name = 'btnExportGPX' and 
-    @value='Download GPX File']")
+    using = "id", value = "export_route_gpx_btn")
+  
   webEl2$clickElement()
 }
 
